@@ -395,6 +395,13 @@ def _bg_ai_backfill(force: bool):
         db.close()
 
 
+@app.post("/sync/daily")
+def trigger_daily_sync(background_tasks: BackgroundTasks):
+    """Trigger the daily incremental sync manually (used by external cron on free hosting)."""
+    background_tasks.add_task(process_daily_sync)
+    return {"message": "Daily sync started in background."}
+
+
 @app.post("/ai/backfill")
 def trigger_ai_backfill(background_tasks: BackgroundTasks, force: bool = False):
     """Trigger AI processing for all stored bills that are missing AI output.
