@@ -1,12 +1,14 @@
 #!/bin/bash
 set -e
 
-# Move to repo root where alembic.ini lives
-cd "$(dirname "$0")"
+# Always run from the directory this script lives in (repo root)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
+echo "Working directory: $(pwd)"
 echo "Running database migrations..."
-alembic upgrade head
+alembic -c "$SCRIPT_DIR/alembic.ini" upgrade head
 
 echo "Starting server..."
-cd backend
+cd "$SCRIPT_DIR/backend"
 uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
