@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animal Legislation Tracker | ALDF Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom stylesheet -->
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+    <!-- Background Blur Decorative Circles -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-glow bg-glow-3"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-shield-cat"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>Animal Legislation Tracker</h1>
+                    <span class="badge">ALDF Ingestion Module</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="date-display" id="current-date">June 4, 2026</div>
+                <button class="btn btn-sync" id="btn-sync-trigger" title="Sync database from Congress.gov">
+                    <i class="fa-solid fa-arrows-rotate"></i> <span>Sync Module</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats / Overview Metrics Strip -->
+        <section class="stats-strip">
+            <div class="stat-card glass-panel">
+                <div class="stat-icon icon-yellow">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="stat-content">
+                    <p class="stat-label">Bills Tracked Today</p>
+                    <h3 class="stat-value" id="val-yesterday">-</h3>
+                    <p class="stat-subtext">New legislative actions</p>
+                </div>
+            </div>
+
+            <div class="stat-card glass-panel">
+                <div class="stat-icon icon-teal">
+                    <i class="fa-solid fa-folder-open"></i>
+                </div>
+                <div class="stat-content">
+                    <p class="stat-label">Total Active Bills</p>
+                    <h3 class="stat-value" id="val-total">-</h3>
+                    <p class="stat-subtext">Stored in database</p>
+                </div>
+            </div>
+
+            <div class="stat-card glass-panel">
+                <div class="stat-icon icon-purple">
+                    <i class="fa-solid fa-tags"></i>
+                </div>
+                <div class="stat-content">
+                    <p class="stat-label">Matching Your Interests</p>
+                    <h3 class="stat-value" id="val-matching">-</h3>
+                    <p class="stat-subtext">Based on your prompt</p>
+                </div>
+            </div>
+
+            <div class="stat-card glass-panel">
+                <div class="stat-icon icon-red">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+                <div class="stat-content">
+                    <p class="stat-label">Requiring Review</p>
+                    <h3 class="stat-value" id="val-review">-</h3>
+                    <p class="stat-subtext">High relevance, unreviewed</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tab Controls & Filter Panel -->
+        <main class="content-section">
+            <div class="control-panel glass-panel">
+                <div class="tabs-container">
+                    <button class="tab-btn active" data-tab="yesterday">
+                        <i class="fa-solid fa-calendar-day"></i> Yesterday's Actions
+                    </button>
+                    <button class="tab-btn" data-tab="recent">
+                        <i class="fa-solid fa-clock"></i> All Recent Actions
+                    </button>
+                    <button class="tab-btn" data-tab="search">
+                        <i class="fa-solid fa-magnifying-glass"></i> Search & Filter
+                    </button>
+                    <button class="tab-btn" data-tab="preferences">
+                        <i class="fa-solid fa-sliders"></i> Tracking Preferences
+                    </button>
+                </div>
+
+                <!-- Custom Search Filters (Expandable/Visible only in search tab) -->
+                <div class="filter-dropdown" id="search-filter-panel">
+                    <form id="filter-form" class="filter-grid">
+                        <div class="form-group">
+                            <label for="filter-keyword">Keyword Search</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-font"></i>
+                                <input type="text" id="filter-keyword" placeholder="Title, action text...">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="filter-subject">Subject</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-tag"></i>
+                                <select id="filter-subject">
+                                    <option value="">All Subjects</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="filter-chamber">Origin Chamber</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-building-columns"></i>
+                                <select id="filter-chamber">
+                                    <option value="">All Chambers</option>
+                                    <option value="house">House</option>
+                                    <option value="senate">Senate</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="filter-billtype">Bill Type</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-file-contract"></i>
+                                <select id="filter-billtype">
+                                    <option value="">All Types</option>
+                                    <option value="HR">H.R. (House Bill)</option>
+                                    <option value="S">S. (Senate Bill)</option>
+                                    <option value="HRES">H.Res. (House Resolution)</option>
+                                    <option value="SRES">S.Res. (Senate Resolution)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group button-group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-filter"></i> Apply Filters
+                            </button>
+                            <button type="reset" class="btn btn-secondary" id="btn-reset-filters">
+                                <i class="fa-solid fa-arrow-rotate-left"></i> Reset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Prompt expansion banner -->
+            <div class="prompt-expansion-banner glass-panel" id="prompt-expansion-banner" style="display:none;">
+                <div class="peb-left">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Filtering by: <strong id="peb-prompt-text"></strong></span>
+                </div>
+                <div class="peb-topics" id="peb-topics"></div>
+                <button class="peb-clear" id="peb-clear"><i class="fa-solid fa-xmark"></i> Clear</button>
+            </div>
+
+            <!-- Ingestion status alerts (Optional notification toast area) -->
+            <div class="alert-container" id="alert-banner" style="display: none;">
+                <div class="alert-content">
+                    <i class="fa-solid fa-info-circle"></i>
+                    <span id="alert-text">System is currently scanning Congress.gov.</span>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div class="loader-container" id="loader">
+                <div class="spinner"></div>
+                <p>Retrieving legislative actions...</p>
+            </div>
+
+            <!-- Bills Grid Feed -->
+            <div class="bills-feed" id="bills-list-container">
+                <!-- Cards will be dynamically injected here -->
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state glass-panel" id="empty-state" style="display: none;">
+                <div class="empty-icon">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                </div>
+                <h3>No Recent Legislative Actions Found</h3>
+                <p id="empty-text">There are no matching animal protection bills with actions recorded for this selection.</p>
+            </div>
+
+            <!-- Pagination controls -->
+            <div class="pagination-panel" id="pagination-controls" style="display: none;">
+                <button class="btn btn-secondary" id="btn-prev-page" disabled>
+                    <i class="fa-solid fa-chevron-left"></i> Previous
+                </button>
+                <span class="page-indicator" id="page-num">Page 1</span>
+                <button class="btn btn-secondary" id="btn-next-page">
+                    Next <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+
+            <!-- Tracking Preferences Panel -->
+            <div id="preferences-panel" style="display:none;">
+                <div class="prefs-container glass-panel">
+                    <div class="prefs-header">
+                        <h2><i class="fa-solid fa-sliders"></i> Tracking Preferences</h2>
+                        <p class="prefs-subtitle">Configure what legislation you want to monitor. Your prompt is converted into structured tracking topics.</p>
+                    </div>
+
+                    <form id="prefs-form" class="prefs-form">
+                        <div class="prefs-field">
+                            <label for="prefs-email">Your Email <span class="required">*</span></label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-envelope"></i>
+                                <input type="email" id="prefs-email" placeholder="you@aldf.org" required>
+                            </div>
+                        </div>
+
+                        <div class="prefs-field">
+                            <label for="prefs-prompt">Tracking Prompt</label>
+                            <p class="field-hint">Describe what legislation you want to track. Examples: "Track farm animal welfare bills", "Track animal testing regulations", "Track wildlife trafficking legislation"</p>
+                            <textarea id="prefs-prompt" rows="3" placeholder="e.g. Track farm animal welfare bills and livestock protection legislation"></textarea>
+                        </div>
+
+                        <div class="prefs-expanded-topics" id="prefs-expanded-topics" style="display:none;">
+                            <p class="field-hint">Your prompt maps to these tracking topics:</p>
+                            <div class="pill-container" id="prefs-topics-pills"></div>
+                        </div>
+
+                        <div class="prefs-row">
+                            <div class="prefs-field">
+                                <label for="prefs-frequency">Digest Frequency</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-calendar"></i>
+                                    <select id="prefs-frequency">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="prefs-field">
+                                <label for="prefs-scope">Scope</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-globe"></i>
+                                    <select id="prefs-scope">
+                                        <option value="federal">Federal</option>
+                                        <option value="priority_states">Priority States (ALDF 8)</option>
+                                        <option value="all_states">All States</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="prefs-field">
+                                <label for="prefs-min-score">Minimum Relevance Score</label>
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-gauge"></i>
+                                    <input type="number" id="prefs-min-score" min="0" max="100" value="70" placeholder="0-100">
+                                </div>
+                                <p class="field-hint">Bills scoring below this threshold are filtered out. Default: 70</p>
+                            </div>
+                        </div>
+
+                        <div class="prefs-actions">
+                            <button type="submit" class="btn btn-primary" id="btn-save-prefs">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Preferences
+                            </button>
+                            <button type="button" class="btn btn-secondary" id="btn-apply-prompt">
+                                <i class="fa-solid fa-filter"></i> Apply to Current View
+                            </button>
+                        </div>
+
+                        <div class="prefs-save-status" id="prefs-save-status" style="display:none;"></div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="detail-modal">
+        <div class="modal-container glass-panel">
+            <button class="modal-close-btn" id="modal-close"><i class="fa-solid fa-xmark"></i></button>
+            <div class="modal-header">
+                <div class="modal-title-row">
+                    <span class="chamber-badge" id="modal-chamber">Senate</span>
+                    <h2 class="modal-bill-id" id="modal-bill-id">119-S-254</h2>
+                </div>
+                <h3 class="modal-bill-title" id="modal-bill-title">Protecting Wildlife Habitats Act of 2025</h3>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Tabs within Modal for structured detail view -->
+                <div class="modal-tabs">
+                    <button class="modal-tab-btn active" data-modal-tab="summary">Overview</button>
+                    <button class="modal-tab-btn" data-modal-tab="ai">AI Analysis</button>
+                    <button class="modal-tab-btn" data-modal-tab="actions">Action History</button>
+                    <button class="modal-tab-btn" data-modal-tab="raw">Raw API Response</button>
+                </div>
+
+                <!-- Modal Content Panels -->
+                <div class="modal-content-panel active" id="m-panel-summary">
+                    <div class="modal-grid">
+                        <div class="meta-section">
+                            <h4>Bill Information</h4>
+                            <ul class="meta-list">
+                                <li>
+                                    <span class="meta-label">Congress:</span>
+                                    <span class="meta-value" id="modal-congress">119th</span>
+                                </li>
+                                <li>
+                                    <span class="meta-label">Introduced Date:</span>
+                                    <span class="meta-value" id="modal-introduced">January 15, 2025</span>
+                                </li>
+                                <li>
+                                    <span class="meta-label">Sponsor:</span>
+                                    <span class="meta-value" id="modal-sponsor">Sen. Corey Booker [D-NJ]</span>
+                                </li>
+                                <li>
+                                    <span class="meta-label">Policy Area:</span>
+                                    <span class="meta-value" id="modal-policy-area">Animals</span>
+                                </li>
+                                <li>
+                                    <span class="meta-label">Current Stage:</span>
+                                    <span class="stage-tag badge-purple" id="modal-stage">Referred to Committee</span>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="subjects-section">
+                            <h4>Matched Subjects</h4>
+                            <div class="pill-container" id="modal-subjects-list">
+                                <!-- Subject pills -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-banner">
+                        <div class="banner-icon"><i class="fa-solid fa-circle-exclamation"></i></div>
+                        <div class="banner-text">
+                            <h5>Latest Legislative Action</h5>
+                            <p class="action-date" id="modal-action-date">June 3, 2026</p>
+                            <p class="action-desc" id="modal-action-desc">Referred to Senate Committee on Environment and Public Works.</p>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer-links">
+                        <a href="#" target="_blank" class="btn btn-primary" id="modal-external-link">
+                            <i class="fa-solid fa-up-right-from-square"></i> Open in Congress.gov
+                        </a>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Panel -->
+                <div class="modal-content-panel" id="m-panel-ai">
+                    <div class="ai-panel" id="ai-panel-content">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Action History Timeline -->
+                <div class="modal-content-panel" id="m-panel-actions">
+                    <div class="timeline" id="modal-action-timeline">
+                        <!-- Actions timeline -->
+                    </div>
+                </div>
+
+                <!-- Raw JSON display -->
+                <div class="modal-content-panel" id="m-panel-raw">
+                    <pre><code id="modal-json-block">{}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Javascript script -->
+    <script src="/static/index.js"></script>
+</body>
+</html>
