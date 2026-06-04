@@ -60,12 +60,17 @@ class CongressAPIClient:
                 
         raise Exception(f"Failed to fetch {url} after {max_retries} attempts.")
 
-    def fetch_bills(self, congress: int, offset: int = 0, limit: int = 20) -> Dict[str, Any]:
+    def fetch_bills(self, congress: int, offset: int = 0, limit: int = 20, from_date_time: Optional[str] = None, to_date_time: Optional[str] = None) -> Dict[str, Any]:
         """
         GET /bill/{congress}
         Retrieves a paginated list of bills for the specified congress.
+        Optionally filtered by fromDateTime/toDateTime (ISO 8601 UTC strings).
         """
-        params = {"offset": offset, "limit": limit}
+        params: Dict[str, Any] = {"offset": offset, "limit": limit}
+        if from_date_time:
+            params["fromDateTime"] = from_date_time
+        if to_date_time:
+            params["toDateTime"] = to_date_time
         return self._request(f"bill/{congress}", params=params)
 
     def fetch_bill_subjects(self, congress: int, bill_type: str, bill_number: str) -> Dict[str, Any]:

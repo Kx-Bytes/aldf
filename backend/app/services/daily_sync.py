@@ -16,15 +16,13 @@ CURRENT_CONGRESS = 119
 def process_daily_sync():
     """Daily incremental sync for the current congress.
 
-    Fetches bills whose latest action landed yesterday, then runs each through the
-    shared ``process_bill`` pipeline (active-check -> animal match -> hash dedup ->
-    upsert). Newly stored or updated bills are handed to the AI processing pipeline.
-
-    Using the same ``process_bill`` as the historical backfill guarantees the two
-    paths apply identical matching, filtering, and dedup rules.
+    Fetches bills updated yesterday using fromDateTime/toDateTime filters,
+    then runs each through the shared process_bill pipeline.
     """
     yesterday = date.today() - timedelta(days=1)
-    logger.info(f"Starting daily sync for Congress {CURRENT_CONGRESS}, action date {yesterday.isoformat()}.")
+    from_dt = f"{yesterday.isoformat()}T00:00:00Z"
+    to_dt = f"{date.today().isoformat()}T00:00:00Z"
+    logger.info(f"Starting daily sync for Congress {CURRENT_CONGRESS}, range {from_dt} to {to_dt}.")
 
     db = SessionLocal()
     client = CongressAPIClient()
@@ -56,9 +54,7 @@ def process_daily_sync():
         stop = False
 
         while not stop:
-            # The list endpoint is sorted by latest action date (desc), so once we
-            # page past yesterday we can stop early.
-            response = client.fetch_bills(CURRENT_CONGRESS, offset=offset, limit=limit)
+            response = client.fetch_bills(CURRENT_CONGRESS, offset=offset, limit=limit, from_date_time=from_dt, to_date_time=to_dt)
             api_request_count += 1
 
             bills = response.get("bills", [])
@@ -66,23 +62,6 @@ def process_daily_sync():
                 break
 
             for list_bill in bills:
-                latest_action = list_bill.get("latestAction", {}) or {}
-                action_date_str = latest_action.get("actionDate")
-                if not action_date_str:
-                    continue
-
-                try:
-                    action_date = date.fromisoformat(action_date_str[:10])
-                except ValueError:
-                    continue
-
-                # Only bills updated yesterday; older entries mean we're done.
-                if action_date < yesterday:
-                    stop = True
-                    break
-                if action_date > yesterday:
-                    continue
-
                 records_processed += 1
                 result = process_bill(
                     db=db,
@@ -100,7 +79,6 @@ def process_daily_sync():
                 elif result.stored:
                     active_bills_stored += 1
                     logger.info(f"Daily sync {result.outcome} bill {result.source_id}.")
-                    # Hand newly stored/updated bills to the AI pipeline.
                     process_bill_ai(result.document, db=db)
 
             if len(bills) < limit:

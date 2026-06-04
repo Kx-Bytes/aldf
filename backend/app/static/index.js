@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const today = new Date("2026-06-04");
+    const today = new Date();
     const formatDateString = (d) => {
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     };
