@@ -5,8 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "Working directory: $(pwd)"
+echo "Fixing alembic version state..."
+
+# Clear any conflicting alembic version rows and stamp the final known revision
+psql "$DATABASE_URL" -c "DELETE FROM alembic_version;" 2>/dev/null || true
+alembic -c "$SCRIPT_DIR/alembic.ini" stamp a1b2c3d4e5f6
+
 echo "Running database migrations..."
-alembic -c "$SCRIPT_DIR/alembic.ini" stamp a1b2c3d4e5f6 2>/dev/null || true
 alembic -c "$SCRIPT_DIR/alembic.ini" upgrade head
 
 echo "Starting server..."
