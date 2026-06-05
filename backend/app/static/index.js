@@ -351,13 +351,97 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { prefsSaveStatus.style.display = 'none'; }, 4000);
     }
 
+    // ── Live Search ────────────────────────────────────────────────────────
+    const livesearchPanel = document.getElementById('livesearch-panel');
+    const livesearchForm = document.getElementById('livesearch-form');
+    const lsPromptEl = document.getElementById('ls-prompt');
+    const lsDateEl = document.getElementById('ls-date');
+    const lsLoader = document.getElementById('ls-loader');
+    const lsResults = document.getElementById('ls-results');
+    const lsEmpty = document.getElementById('ls-empty');
+    const lsExpansionBanner = document.getElementById('ls-expansion-banner');
+    const lsTopics = document.getElementById('ls-topics');
+
+    // Default date to yesterday
+    const lsDefault = new Date();
+    lsDefault.setDate(lsDefault.getDate() - 1);
+    lsDateEl.value = formatDateString(lsDefault);
+
+    livesearchForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const prompt = lsPromptEl.value.trim();
+        const date = lsDateEl.value;
+        if (!prompt) { alert('Please enter a prompt.'); return; }
+        if (!date) { alert('Please select a date.'); return; }
+
+        lsLoader.style.display = 'flex';
+        lsResults.innerHTML = '';
+        lsEmpty.style.display = 'none';
+        lsExpansionBanner.style.display = 'none';
+
+        try {
+            const res = await fetch('/search/live', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, date, user_email: activeUserEmail || null })
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+
+            if (data.prompt_expansion?.topics?.length) {
+                lsTopics.innerHTML = data.prompt_expansion.topics.map(t => `<span class="peb-topic-pill">${t}</span>`).join('');
+                lsExpansionBanner.style.display = 'flex';
+            }
+
+            if (!data.results?.length) {
+                lsEmpty.style.display = 'block';
+            } else {
+                data.results.forEach(bill => {
+                    const chamber = (bill.origin_chamber || 'house').toLowerCase();
+                    const card = document.createElement('div');
+                    card.className = `bill-card glass-panel ${chamber}`;
+                    const sc = bill.prompt_score >= 70 ? 'score-high' : bill.prompt_score >= 40 ? 'score-mid' : 'score-low';
+                    const subjectPills = (bill.subjects || []).slice(0, 3).map(s => `<span class="subject-pill">${s}</span>`).join('');
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <span class="chamber-badge ${chamber}">${bill.origin_chamber || 'House'}</span>
+                            <span class="bill-id">${bill.source_id}</span>
+                            <span class="relevance-score-badge ${sc}" title="Prompt Match">${bill.prompt_score}</span>
+                        </div>
+                        <h3 class="bill-title" title="${bill.title}">${bill.title || 'No Title'}</h3>
+                        <div class="card-action-block">
+                            <div class="action-header">
+                                <span class="action-title">LATEST ACTION</span>
+                                <span class="action-time">${bill.last_action_date || ''}</span>
+                            </div>
+                            <p class="action-text">${bill.last_action_text || 'No actions logged'}</p>
+                        </div>
+                        <div class="pill-container" style="margin-bottom:1.25rem;">${subjectPills}</div>
+                        <div class="card-footer">
+                            <span class="card-stage">${bill.current_stage || 'Introduced'}</span>
+                            <span class="card-more">View <i class="fa-solid fa-arrow-right"></i></span>
+                        </div>
+                    `;
+                    lsResults.appendChild(card);
+                });
+            }
+        } catch (err) {
+            lsEmpty.style.display = 'block';
+            lsEmpty.querySelector('p').textContent = `Error: ${err.message}`;
+        } finally {
+            lsLoader.style.display = 'none';
+        }
+    });
+
     // ── Tabs ───────────────────────────────────────────────────────────────
     function switchToTab(tabName) {
         tabButtons.forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === tabName));
         currentTab = tabName;
         const isPrefs = tabName === 'preferences';
-        const isFeed = !isPrefs;
+        const isLive = tabName === 'livesearch';
+        const isFeed = !isPrefs && !isLive;
         preferencesPanel.style.display = isPrefs ? 'block' : 'none';
+        livesearchPanel.style.display = isLive ? 'block' : 'none';
         billsListContainer.style.display = isFeed ? 'grid' : 'none';
         emptyStateEl.style.display = 'none';
         loaderEl.style.display = 'none';
@@ -370,7 +454,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', async () => {
             const tabName = btn.getAttribute('data-tab');
             switchToTab(tabName);
-            if (tabName !== 'preferences') await loadBillsFeed();
+            if (tabName !== 'preferences' && tabName !== 'livesearch') await loadBillsFeed();
         });
     });
 

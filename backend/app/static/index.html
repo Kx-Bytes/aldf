@@ -102,6 +102,9 @@
                     <button class="tab-btn" data-tab="preferences">
                         <i class="fa-solid fa-sliders"></i> Tracking Preferences
                     </button>
+                    <button class="tab-btn" data-tab="livesearch">
+                        <i class="fa-solid fa-satellite-dish"></i> Live Search
+                    </button>
                 </div>
 
                 <!-- Custom Search Filters (Expandable/Visible only in search tab) -->
@@ -285,6 +288,47 @@
 
                         <div class="prefs-save-status" id="prefs-save-status" style="display:none;"></div>
                     </form>
+                </div>
+            </div>
+            <!-- Live Search Panel -->
+            <div id="livesearch-panel" style="display:none;">
+                <div class="prefs-container glass-panel">
+                    <div class="prefs-header">
+                        <h2><i class="fa-solid fa-satellite-dish"></i> Live Search</h2>
+                        <p class="prefs-subtitle">Search Congress.gov directly for animal-related bills updated on a specific date matching your prompt.</p>
+                    </div>
+                    <form id="livesearch-form" class="prefs-form">
+                        <div class="prefs-field">
+                            <label for="ls-prompt">Your Prompt</label>
+                            <textarea id="ls-prompt" rows="2" placeholder="e.g. factory farming, wildlife trafficking, animal testing"></textarea>
+                        </div>
+                        <div class="prefs-field">
+                            <label for="ls-date">Date</label>
+                            <div class="input-with-icon">
+                                <i class="fa-solid fa-calendar"></i>
+                                <input type="date" id="ls-date" style="padding-left:2.5rem;">
+                            </div>
+                        </div>
+                        <div class="prefs-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-magnifying-glass"></i> Search Live
+                            </button>
+                        </div>
+                    </form>
+                    <div id="ls-expansion-banner" style="display:none;margin-top:1.5rem;" class="prompt-expansion-banner glass-panel">
+                        <div class="peb-left"><i class="fa-solid fa-wand-magic-sparkles"></i><span>Mapped to: </span></div>
+                        <div class="peb-topics" id="ls-topics"></div>
+                    </div>
+                    <div id="ls-loader" style="display:none;" class="loader-container">
+                        <div class="spinner"></div>
+                        <p>Searching Congress.gov...</p>
+                    </div>
+                    <div id="ls-results" class="bills-feed" style="margin-top:1.5rem;"></div>
+                    <div id="ls-empty" style="display:none;margin-top:1.5rem;" class="empty-state glass-panel">
+                        <div class="empty-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
+                        <h3>No Matching Bills Found</h3>
+                        <p>No animal-related bills matched your prompt for that date.</p>
+                    </div>
                 </div>
             </div>
         </main>

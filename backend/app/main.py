@@ -395,6 +395,123 @@ def _bg_ai_backfill(force: bool):
         db.close()
 
 
+@app.post("/search/live")
+def live_search(
+    body: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Search Congress.gov live for bills updated on a specific date matching a prompt."""
+    prompt = (body.get("prompt") or "").strip()
+    search_date = (body.get("date") or "").strip()
+    user_email = (body.get("user_email") or "").strip() or None
+
+    if not prompt:
+        raise HTTPException(status_code=400, detail="prompt is required")
+    if not search_date:
+        raise HTTPException(status_code=400, detail="date is required")
+
+    try:
+        from datetime import date as date_type, timedelta
+        parsed_date = date_type.fromisoformat(search_date)
+        next_date = parsed_date + timedelta(days=1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
+
+    from_dt = f"{parsed_date.isoformat()}T00:00:00Z"
+    to_dt = f"{next_date.isoformat()}T00:00:00Z"
+
+    # Expand prompt once (cached if user_email provided)
+    from .services.ai_processing import expand_prompt_to_topics, score_against_prompt
+    from .services.matching import match_bill, is_action_active
+    expansion = expand_prompt_to_topics(prompt, db=db, user_email=user_email)
+    topics = expansion.get("topics", [])
+    keywords = expansion.get("keywords", [])
+
+    # Load active animal subjects for matching
+    from .models import AnimalSubject
+    active_subject_names = {s.subject_name for s in db.query(AnimalSubject).filter(AnimalSubject.active == True).all()}
+
+    client = CongressAPIClient()
+    results = []
+    offset = 0
+    limit = 200
+
+    try:
+        while True:
+            response = client.fetch_bills(119, offset=offset, limit=limit, from_date_time=from_dt, to_date_time=to_dt)
+            bills = response.get("bills", [])
+            if not bills:
+                break
+
+            for bill in bills:
+                bill_number = bill.get("number") or bill.get("billNumber")
+                bill_type = (bill.get("type") or bill.get("billType", "")).upper()
+                if not bill_number or not bill_type:
+                    continue
+
+                # Skip inactive bills
+                latest_action = bill.get("latestAction", {}) or {}
+                if not is_action_active(latest_action.get("text")):
+                    continue
+
+                # Fetch subjects for animal matching
+                try:
+                    subjects_data = client.fetch_bill_subjects(119, bill_type, bill_number)
+                    subjects_obj = subjects_data.get("subjects", {})
+                    policy_area = (subjects_obj.get("policyArea") or {}).get("name")
+                    subject_names = [s.get("name") for s in subjects_obj.get("legislativeSubjects", []) if s.get("name")]
+                except Exception:
+                    continue
+
+                is_matched, _ = match_bill(policy_area, subject_names, active_subject_names)
+                if not is_matched:
+                    continue
+
+                # Build a lightweight doc-like object for scoring
+                class _Doc:
+                    pass
+                doc = _Doc()
+                doc.title = bill.get("title") or ""
+                doc.policy_area = policy_area or ""
+                doc.ai_summary = ""
+                doc.relevance_score = 0
+                doc.relevance_topics = []
+                doc.subjects = [type('S', (), {'name': n})() for n in subject_names]
+
+                prompt_score = score_against_prompt(doc, topics, keywords)
+
+                results.append({
+                    "source_id": f"119-{bill_type}-{bill_number}",
+                    "title": bill.get("title"),
+                    "bill_type": bill_type,
+                    "bill_number": bill_number,
+                    "origin_chamber": bill.get("originChamber"),
+                    "policy_area": policy_area,
+                    "last_action_date": latest_action.get("actionDate"),
+                    "last_action_text": latest_action.get("text"),
+                    "update_date": bill.get("updateDate"),
+                    "subjects": subject_names,
+                    "prompt_score": prompt_score,
+                    "source_url": bill.get("url"),
+                    "current_stage": get_current_stage(latest_action.get("text")),
+                })
+
+            if len(bills) < limit:
+                break
+            offset += limit
+    finally:
+        client.close()
+
+    results.sort(key=lambda r: r["prompt_score"], reverse=True)
+
+    return {
+        "date": search_date,
+        "prompt_expansion": expansion,
+        "total": len(results),
+        "results": results,
+    }
+
+
 @app.post("/sync/daily")
 def trigger_daily_sync(background_tasks: BackgroundTasks):
     """Trigger the daily incremental sync manually (used by external cron on free hosting)."""
