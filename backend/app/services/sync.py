@@ -329,6 +329,34 @@ def process_bill(
         outcome = OUTCOME_INSERTED
 
     db.commit()  # Save progress transactionally for this bill.
+
+    # Fetch and store all actions for this bill into bill_actions table
+    try:
+        from ..models import BillAction
+        actions_data = client.fetch_bill_actions(congress, bill_type_upper, bill_number)
+        actions = actions_data.get("actions", [])
+        # Delete existing actions for this doc to avoid duplicates on re-sync
+        db.query(BillAction).filter(BillAction.document_id == doc.id).delete()
+        for act in actions:
+            action_date = parse_date(act.get("actionDate"))
+            text = (act.get("text") or "").strip()
+            if not action_date or not text:
+                continue
+            source_system = act.get("sourceSystem") or {}
+            db.add(BillAction(
+                document_id=doc.id,
+                action_code=act.get("actionCode"),
+                action_date=action_date,
+                text=text,
+                action_type=act.get("type"),
+                source_system_code=source_system.get("code"),
+                source_system_name=source_system.get("name"),
+            ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: failed to sync actions for {source_id}: {e}")
+
     return BillResult(outcome, source_id, api_requests, doc)
 
 

@@ -400,7 +400,11 @@ def live_search(
     body: Dict[str, Any],
     db: Session = Depends(get_db)
 ):
-    """Search Congress.gov live for bills updated on a specific date matching a prompt."""
+    """Search stored bill_actions by date and score results against a prompt."""
+    from .models import BillAction
+    from .services.ai_processing import expand_prompt_to_topics, score_against_prompt
+    from datetime import date as date_type
+
     prompt = (body.get("prompt") or "").strip()
     search_date = (body.get("date") or "").strip()
     user_email = (body.get("user_email") or "").strip() or None
@@ -411,96 +415,58 @@ def live_search(
         raise HTTPException(status_code=400, detail="date is required")
 
     try:
-        from datetime import date as date_type, timedelta
         parsed_date = date_type.fromisoformat(search_date)
-        next_date = parsed_date + timedelta(days=1)
     except ValueError:
         raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
 
-    from_dt = f"{parsed_date.isoformat()}T00:00:00Z"
-    to_dt = f"{next_date.isoformat()}T00:00:00Z"
-
-    # Expand prompt once (cached if user_email provided)
-    from .services.ai_processing import expand_prompt_to_topics, score_against_prompt
-    from .services.matching import match_bill, is_action_active
+    # Expand prompt (cached if user_email provided)
     expansion = expand_prompt_to_topics(prompt, db=db, user_email=user_email)
     topics = expansion.get("topics", [])
     keywords = expansion.get("keywords", [])
 
-    # Load active animal subjects for matching
-    from .models import AnimalSubject
-    active_subject_names = {s.subject_name for s in db.query(AnimalSubject).filter(AnimalSubject.active == True).all()}
+    # Find all bills that had an action on the given date
+    actions = (
+        db.query(BillAction)
+        .filter(BillAction.action_date == parsed_date)
+        .all()
+    )
 
-    client = CongressAPIClient()
+    # Deduplicate by document_id — one result per bill
+    seen = set()
     results = []
-    offset = 0
-    limit = 200
+    for action in actions:
+        if action.document_id in seen:
+            continue
+        seen.add(action.document_id)
 
-    try:
-        while True:
-            response = client.fetch_bills(119, offset=offset, limit=limit, from_date_time=from_dt, to_date_time=to_dt)
-            bills = response.get("bills", [])
-            if not bills:
-                break
+        doc = db.query(LegislativeDocument).filter(LegislativeDocument.id == action.document_id).first()
+        if not doc:
+            continue
 
-            for bill in bills:
-                bill_number = bill.get("number") or bill.get("billNumber")
-                bill_type = (bill.get("type") or bill.get("billType", "")).upper()
-                if not bill_number or not bill_type:
-                    continue
+        prompt_score = score_against_prompt(doc, topics, keywords)
+        sp_name, sp_party, sp_state = extract_sponsor_info(doc.api_raw)
 
-                # Skip inactive bills
-                latest_action = bill.get("latestAction", {}) or {}
-                if not is_action_active(latest_action.get("text")):
-                    continue
-
-                # Fetch subjects for animal matching
-                try:
-                    subjects_data = client.fetch_bill_subjects(119, bill_type, bill_number)
-                    subjects_obj = subjects_data.get("subjects", {})
-                    policy_area = (subjects_obj.get("policyArea") or {}).get("name")
-                    subject_names = [s.get("name") for s in subjects_obj.get("legislativeSubjects", []) if s.get("name")]
-                except Exception:
-                    continue
-
-                is_matched, _ = match_bill(policy_area, subject_names, active_subject_names)
-                if not is_matched:
-                    continue
-
-                # Build a lightweight doc-like object for scoring
-                class _Doc:
-                    pass
-                doc = _Doc()
-                doc.title = bill.get("title") or ""
-                doc.policy_area = policy_area or ""
-                doc.ai_summary = ""
-                doc.relevance_score = 0
-                doc.relevance_topics = []
-                doc.subjects = [type('S', (), {'name': n})() for n in subject_names]
-
-                prompt_score = score_against_prompt(doc, topics, keywords)
-
-                results.append({
-                    "source_id": f"119-{bill_type}-{bill_number}",
-                    "title": bill.get("title"),
-                    "bill_type": bill_type,
-                    "bill_number": bill_number,
-                    "origin_chamber": bill.get("originChamber"),
-                    "policy_area": policy_area,
-                    "last_action_date": latest_action.get("actionDate"),
-                    "last_action_text": latest_action.get("text"),
-                    "update_date": bill.get("updateDate"),
-                    "subjects": subject_names,
-                    "prompt_score": prompt_score,
-                    "source_url": bill.get("url"),
-                    "current_stage": get_current_stage(latest_action.get("text")),
-                })
-
-            if len(bills) < limit:
-                break
-            offset += limit
-    finally:
-        client.close()
+        results.append({
+            "source_id": doc.source_id,
+            "title": doc.title,
+            "bill_type": doc.bill_type,
+            "bill_number": doc.bill_number,
+            "origin_chamber": doc.origin_chamber,
+            "policy_area": doc.policy_area,
+            "action_date": action.action_date.isoformat(),
+            "action_text": action.text,
+            "last_action_date": doc.last_action_date.isoformat() if doc.last_action_date else None,
+            "last_action_text": doc.last_action_text,
+            "subjects": [s.name for s in doc.subjects],
+            "prompt_score": prompt_score,
+            "relevance_score": doc.relevance_score,
+            "ai_summary": doc.ai_summary,
+            "source_url": doc.source_url,
+            "current_stage": get_current_stage(doc.last_action_text),
+            "sponsor_name": sp_name,
+            "sponsor_party": sp_party,
+            "sponsor_state": sp_state,
+        })
 
     results.sort(key=lambda r: r["prompt_score"], reverse=True)
 
@@ -510,6 +476,49 @@ def live_search(
         "total": len(results),
         "results": results,
     }
+
+
+@app.post("/sync/backfill-actions")
+def backfill_actions(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Backfill bill_actions for all existing stored bills."""
+    def _run():
+        from .models import BillAction
+        from .services.sync import parse_date
+        session = SessionLocal()
+        client = CongressAPIClient()
+        try:
+            docs = session.query(LegislativeDocument).all()
+            print(f"Backfilling actions for {len(docs)} bills...")
+            for doc in docs:
+                try:
+                    data = client.fetch_bill_actions(doc.congress, doc.bill_type, doc.bill_number)
+                    actions = data.get("actions", [])
+                    session.query(BillAction).filter(BillAction.document_id == doc.id).delete()
+                    for act in actions:
+                        action_date = parse_date(act.get("actionDate"))
+                        text = (act.get("text") or "").strip()
+                        if not action_date or not text:
+                            continue
+                        source_system = act.get("sourceSystem") or {}
+                        session.add(BillAction(
+                            document_id=doc.id,
+                            action_code=act.get("actionCode"),
+                            action_date=action_date,
+                            text=text,
+                            action_type=act.get("type"),
+                            source_system_code=source_system.get("code"),
+                            source_system_name=source_system.get("name"),
+                        ))
+                    session.commit()
+                except Exception as e:
+                    session.rollback()
+                    print(f"Failed actions for {doc.source_id}: {e}")
+            print("Action backfill complete.")
+        finally:
+            client.close()
+            session.close()
+    background_tasks.add_task(_run)
+    return {"message": "Action backfill started in background."}
 
 
 @app.post("/sync/daily")
