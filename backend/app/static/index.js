@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const alertBanner = document.getElementById('alert-banner');
     const alertText = document.getElementById('alert-text');
     const preferencesPanel = document.getElementById('preferences-panel');
+    const livesearchPanel = document.getElementById('livesearch-panel');
     const paginationControls = document.getElementById('pagination-controls');
 
     // DOM refs — prompt expansion banner
@@ -352,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Live Search ────────────────────────────────────────────────────────
-    const livesearchPanel = document.getElementById('livesearch-panel');
     const livesearchForm = document.getElementById('livesearch-form');
     const lsPromptEl = document.getElementById('ls-prompt');
     const lsDateEl = document.getElementById('ls-date');
