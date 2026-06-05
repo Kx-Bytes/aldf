@@ -476,7 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Loader helper ──────────────────────────────────────────────────────
     function showLoader(show) {
         loaderEl.style.display = show ? 'flex' : 'none';
-        billsListContainer.style.display = show ? 'none' : 'grid';
+        if (currentTab !== 'livesearch') {
+            billsListContainer.style.display = show ? 'none' : 'grid';
+        }
     }
 
     // ── Modal ──────────────────────────────────────────────────────────────
