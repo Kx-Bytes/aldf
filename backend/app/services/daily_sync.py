@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 # Current congressional session targeted by the daily incremental sync.
 CURRENT_CONGRESS = 119
 
+# Bills whose AI relevance_score falls below this are dropped even if they passed
+# the subject-matching gate. Keeps non-animal tangential bills out of the feed.
+ANIMAL_RELEVANCE_THRESHOLD = 30
+
 
 def process_daily_sync():
     """Daily incremental sync for the current congress.
@@ -77,9 +81,19 @@ def process_daily_sync():
                 if result.outcome == OUTCOME_INACTIVE:
                     inactive_bills_skipped += 1
                 elif result.stored:
-                    active_bills_stored += 1
-                    logger.info(f"Daily sync {result.outcome} bill {result.source_id}.")
                     process_bill_ai(result.document, db=db)
+                    score = result.document.relevance_score or 0
+                    if score < ANIMAL_RELEVANCE_THRESHOLD:
+                        logger.info(
+                            f"Daily sync: removing {result.source_id} — relevance_score {score} "
+                            f"below threshold {ANIMAL_RELEVANCE_THRESHOLD}."
+                        )
+                        db.delete(result.document)
+                        db.commit()
+                        inactive_bills_skipped += 1
+                    else:
+                        active_bills_stored += 1
+                        logger.info(f"Daily sync {result.outcome} bill {result.source_id} (score={score}).")
 
             if len(bills) < limit:
                 break

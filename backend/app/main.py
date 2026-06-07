@@ -537,6 +537,54 @@ def trigger_ai_backfill(background_tasks: BackgroundTasks, force: bool = False):
     return {"message": "AI backfill started in background.", "force": force}
 
 
+def _bg_purge_non_animal(threshold: int):
+    """Background worker: delete bills whose AI relevance_score is below threshold.
+
+    Bills with no AI output yet are scored first via process_bill_ai() so we
+    don't blindly keep or delete un-scored records.
+    """
+    from .services.ai_processing import process_bill_ai as _process_ai
+    db = SessionLocal()
+    try:
+        docs = db.query(LegislativeDocument).all()
+        total = len(docs)
+        deleted = 0
+        scored = 0
+        print(f"Purge: evaluating {total} bills against threshold={threshold}.")
+        for doc in docs:
+            # Run AI if not yet scored so we have a real score to judge
+            if doc.relevance_score is None:
+                _process_ai(doc, db=db)
+                scored += 1
+            score = doc.relevance_score or 0
+            if score < threshold:
+                print(f"Purge: deleting {doc.source_id} (score={score}).")
+                db.delete(doc)
+                db.commit()
+                deleted += 1
+        print(f"Purge complete: {deleted} bills deleted, {scored} newly scored, {total - deleted} kept.")
+    except Exception as e:
+        db.rollback()
+        print(f"Purge failed: {e}")
+    finally:
+        db.close()
+
+
+@app.post("/admin/purge-non-animal")
+def purge_non_animal(background_tasks: BackgroundTasks, threshold: int = 30):
+    """Delete all stored bills whose animal relevance_score is below `threshold` (default 30).
+
+    Bills that haven't been AI-scored yet are scored first before the decision is made.
+    Runs in the background — check server logs for progress.
+    """
+    background_tasks.add_task(_bg_purge_non_animal, threshold)
+    return {
+        "message": "Purge started in background.",
+        "threshold": threshold,
+        "note": "Bills with relevance_score < threshold will be permanently deleted. Check server logs for progress.",
+    }
+
+
 @app.post("/users", response_model=Dict[str, Any])
 def create_user(body: Dict[str, Any], db: Session = Depends(get_db)):
     """Create or update a user profile with tracking preferences."""
