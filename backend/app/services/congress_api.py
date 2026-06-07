@@ -9,7 +9,7 @@ class CongressAPIClient:
     """
     def __init__(self):
         self.base_url = "https://api.congress.gov/v3"
-        self.api_key = settings.CONGRESS_API_KEY
+        self.api_key = settings.CONGRESS_API_KEY.strip()
         
         # User-Agent is explicitly set to prevent Cloudflare/API gateway blocks
         self.client = httpx.Client(
