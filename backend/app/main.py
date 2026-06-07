@@ -556,7 +556,11 @@ def _bg_purge_non_animal(threshold: int):
             if doc.relevance_score is None:
                 _process_ai(doc, db=db)
                 scored += 1
-            score = doc.relevance_score or 0
+            # Skip deletion if AI scoring still failed — don't drop unscored bills
+            if doc.relevance_score is None:
+                print(f"Purge: skipping {doc.source_id} — AI scoring failed, keeping to be safe.")
+                continue
+            score = doc.relevance_score
             if score < threshold:
                 print(f"Purge: deleting {doc.source_id} (score={score}).")
                 db.delete(doc)
