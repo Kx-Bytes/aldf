@@ -574,6 +574,18 @@ def _bg_purge_non_animal(threshold: int):
         db.close()
 
 
+@app.post("/admin/clear-all-data")
+def clear_all_data(db: Session = Depends(get_db)):
+    """Delete all bills, subjects, actions, and sync logs. Use before a clean backfill."""
+    from .models import BillAction
+    db.query(BillAction).delete()
+    db.query(LegislativeDocument).delete()
+    db.query(Subject).delete()
+    db.query(SyncLog).delete()
+    db.commit()
+    return {"message": "All data cleared. Ready for a fresh backfill."}
+
+
 @app.post("/admin/purge-non-animal")
 def purge_non_animal(background_tasks: BackgroundTasks, threshold: int = 30):
     """Delete all stored bills whose animal relevance_score is below `threshold` (default 30).

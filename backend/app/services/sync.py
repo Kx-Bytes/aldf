@@ -357,6 +357,20 @@ def process_bill(
         db.rollback()
         print(f"Warning: failed to sync actions for {source_id}: {e}")
 
+    # Run AI scoring immediately after saving; reject bills below threshold.
+    AI_THRESHOLD = 40
+    try:
+        from .ai_processing import process_bill_ai
+        process_bill_ai(doc, db=db)
+        if doc.relevance_score is not None and doc.relevance_score < AI_THRESHOLD:
+            print(f"AI score {doc.relevance_score} < {AI_THRESHOLD} for {source_id} — discarding.")
+            db.delete(doc)
+            db.commit()
+            return BillResult(OUTCOME_NO_MATCH, source_id, api_requests)
+        print(f"AI score {doc.relevance_score} for {source_id} — keeping.")
+    except Exception as e:
+        print(f"Warning: AI scoring failed for {source_id}: {e}. Keeping bill.")
+
     return BillResult(outcome, source_id, api_requests, doc)
 
 
