@@ -376,6 +376,7 @@ def run_historical_backfill(
     import time
     import signal
     import sys
+    import threading
 
     # 1. Create or load the SyncLog record
     if resume_log_id:
@@ -457,8 +458,10 @@ def run_historical_backfill(
             print(f"Error saving interruption checkpoint to DB: {db_err}")
         sys.exit(128 + signum)
 
-    old_sigterm = signal.signal(signal.SIGTERM, handle_sig)
-    old_sigint = signal.signal(signal.SIGINT, handle_sig)
+    in_main_thread = threading.current_thread() is threading.main_thread()
+    if in_main_thread:
+        old_sigterm = signal.signal(signal.SIGTERM, handle_sig)
+        old_sigint = signal.signal(signal.SIGINT, handle_sig)
     
     try:
         has_more = True
@@ -607,8 +610,9 @@ def run_historical_backfill(
         db.commit()
         raise e
     finally:
-        signal.signal(signal.SIGTERM, old_sigterm)
-        signal.signal(signal.SIGINT, old_sigint)
+        if in_main_thread:
+            signal.signal(signal.SIGTERM, old_sigterm)
+            signal.signal(signal.SIGINT, old_sigint)
         client.close()
         
     return sync_log
