@@ -5,7 +5,8 @@ from .config import settings
 class Base(DeclarativeBase):
     pass
 
-engine = create_engine(settings.DATABASE_URL, echo=False)
+db_url = settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+engine = create_engine(db_url, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db():

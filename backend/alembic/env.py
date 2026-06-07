@@ -44,7 +44,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = settings.DATABASE_URL
+    url = settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -65,7 +65,7 @@ def run_migrations_online() -> None:
     """
     from sqlalchemy import create_engine
     connectable = create_engine(
-        settings.DATABASE_URL,
+        settings.DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1),
         poolclass=pool.NullPool,
     )
 
