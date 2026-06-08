@@ -867,13 +867,20 @@ def export_json(include_raw: bool = False, db: Session = Depends(get_db)):
         headers={"Content-Disposition": "attachment; filename=animal_legislation_export.json"}
     )
 
-# Serve static files and index.html
+# Serve React build (frontend/dist) as static files
 import os
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(static_dir, exist_ok=True)
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
 
-@app.get("/")
-def read_index():
-    return FileResponse(os.path.join(static_dir, "index.html"))
+if os.path.isdir(frontend_dist):
+    # Serve static assets (JS, CSS, images) from /assets
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+
+    # Catch-all: serve index.html for any unmatched route (React Router support)
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        index = os.path.join(frontend_dist, "index.html")
+        return FileResponse(index)
+

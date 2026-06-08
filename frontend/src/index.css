@@ -1,0 +1,161 @@
+/* ══════════════════════════════════════════════
+   ALDF Command Center — Global Design Tokens
+   ══════════════════════════════════════════════ */
+
+:root {
+  /* ── Core Palette ── */
+  --bg-deep:        #000000;
+  --bg-surface:     #0a0a0a;
+  --bg-elevated:    #121212;
+  --bg-hover:       #1a1a1a;
+
+  /* ── Brand Accent ── */
+  --c-teal:         #006C67;
+  --c-teal-bright:  #00A89E;
+  --c-teal-glow:    rgba(0, 168, 158, 0.1);
+  --c-teal-shadow:  rgba(0, 108, 103, 0.15);
+
+  /* ── Semantic ── */
+  --c-success:      #10B981;
+  --c-warning:      #D19900;
+  --c-error:        #FF8552;
+
+  /* ── Text ── */
+  --text-primary:   #FFFFFF;
+  --text-secondary: #A1A1AA; /* Zinc 400 */
+  --text-tertiary:  #71717A; /* Zinc 500 */
+
+  /* ── Borders ── */
+  --border-default: #27272A; /* Zinc 800 */
+  --border-hover:   #3F3F46; /* Zinc 700 */
+
+  /* ── Typography ── */
+  --font-display:   'DM Serif Display', serif;
+  --font-body:      'Space Grotesk', sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+
+  /* ── Radii ── */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+}
+
+[data-theme="light"] {
+  /* ── Core Palette ── */
+  --bg-deep:        #F4F4F5; /* Zinc 100 */
+  --bg-surface:     #FFFFFF;
+  --bg-elevated:    #FFFFFF;
+  --bg-hover:       #FAFAFA; /* Zinc 50 */
+
+  /* ── Text ── */
+  --text-primary:   #09090B; /* Zinc 950 */
+  --text-secondary: #52525B; /* Zinc 600 */
+  --text-tertiary:  #71717A; /* Zinc 500 */
+
+  /* ── Borders ── */
+  --border-default: #E4E4E7; /* Zinc 200 */
+  --border-hover:   #D4D4D8; /* Zinc 300 */
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Reusable surface card ── */
+.glass-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.text-gradient {
+  color: var(--c-teal-bright);
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--c-teal);
+  color: var(--text-primary);
+  border: none;
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary:hover {
+  background: var(--c-teal-bright);
+  box-shadow: 0 0 24px var(--c-teal-shadow), 0 0 48px rgba(0,168,158,0.08);
+  transform: translateY(-1px);
+}
+
+/* ── Forms ── */
+.input-field {
+  width: 100%;
+  background: var(--bg-deep);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-field:focus {
+  border-color: var(--c-teal);
+  box-shadow: 0 0 0 3px var(--c-teal-glow);
+}
+
+.input-field::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes subtleGlow {
+  0%, 100% { box-shadow: 0 0 12px var(--c-teal-glow); }
+  50% { box-shadow: 0 0 24px var(--c-teal-glow); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-teal); }
+
+/* ── Selection ── */
+::selection {
+  background: var(--c-teal);
+  color: var(--bg-deep);
+}
