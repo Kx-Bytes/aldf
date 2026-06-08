@@ -6,7 +6,6 @@ import {
   fetchBillActions, 
   fetchLiveSearch,
   triggerAIProcess,
-  triggerSync,
   getUser,
   updateUser,
   createUser,
@@ -68,7 +67,6 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
   const [matchingInterests, setMatchingInterests] = useState(0);
   const [yesterdayCount, setYesterdayCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
 
   // ── Modal State
   const [selectedBill, setSelectedBill] = useState(null);
@@ -217,20 +215,6 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
     }
   };
   
-  const handleSync = async () => {
-    setSyncing(true);
-    try {
-      await triggerSync(119);
-      alert('Sync completed successfully.');
-      const stats = await fetchStats();
-      setTotalBills(stats.total_active_bills || 0);
-    } catch(e) {
-      alert('Sync failed.');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   const handleBillClick = async (bill) => {
     setSelectedBill(bill);
     setModalTab('overview');
@@ -302,9 +286,6 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
             </div>
           </div>
           <div className="header-right" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <button className="btn btn-primary" onClick={handleSync} disabled={syncing}>
-               {syncing ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-rotate"></i>} Sync Data
-            </button>
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
             <button className="btn btn-logout" onClick={onLogout}>
               <i className="fa-solid fa-right-from-bracket"></i>
