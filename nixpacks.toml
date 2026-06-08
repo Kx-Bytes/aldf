@@ -1,2 +1,5 @@
+[variables]
+NODE_VERSION = "22"
+
 [phases.setup]
-nixPkgs = ["python311", "nodejs_22", "nodePackages.npm"]
+nixPkgs = ["python311"]
