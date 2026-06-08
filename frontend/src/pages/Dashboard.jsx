@@ -147,8 +147,8 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
         }
       }
 
-      // Feature 4: Apply Global Prompts to other tabs
-      if (activeTab !== 'search' && prefPrompt) {
+      // Feature 4: Apply Global Prompts to yesterday tab only
+      if (activeTab === 'yesterday' && prefPrompt) {
         params.userPrompt = prefPrompt;
         params.minScore = prefMinScore;
         params.userEmail = currentUserEmail;
