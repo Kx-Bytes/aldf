@@ -361,17 +361,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const lsExpansionBanner = document.getElementById('ls-expansion-banner');
     const lsTopics = document.getElementById('ls-topics');
 
-    // Default date to yesterday
-    const lsDefault = new Date();
-    lsDefault.setDate(lsDefault.getDate() - 1);
-    lsDateEl.value = formatDateString(lsDefault);
-
     livesearchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const prompt = lsPromptEl.value.trim();
-        const date = lsDateEl.value;
+        const date = lsDateEl.value || null;
         if (!prompt) { alert('Please enter a prompt.'); return; }
-        if (!date) { alert('Please select a date.'); return; }
 
         lsLoader.style.display = 'flex';
         lsResults.innerHTML = '';

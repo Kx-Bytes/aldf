@@ -406,46 +406,54 @@ def live_search(
     from datetime import date as date_type
 
     prompt = (body.get("prompt") or "").strip()
-    search_date = (body.get("date") or "").strip()
+    search_date = (body.get("date") or "").strip() or None
     user_email = (body.get("user_email") or "").strip() or None
 
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt is required")
-    if not search_date:
-        raise HTTPException(status_code=400, detail="date is required")
 
-    try:
-        parsed_date = date_type.fromisoformat(search_date)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
+    parsed_date = None
+    if search_date:
+        try:
+            parsed_date = date_type.fromisoformat(search_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
 
     # Expand prompt (cached if user_email provided)
     expansion = expand_prompt_to_topics(prompt, db=db, user_email=user_email)
     topics = expansion.get("topics", [])
     keywords = expansion.get("keywords", [])
 
-    # Find all bills that had an action on the given date
-    actions = (
-        db.query(BillAction)
-        .filter(BillAction.action_date == parsed_date)
-        .all()
-    )
+    if parsed_date:
+        # Date provided: find bills that had an action on that specific date
+        actions = (
+            db.query(BillAction)
+            .filter(BillAction.action_date == parsed_date)
+            .all()
+        )
+        seen = set()
+        docs_to_score = []
+        for action in actions:
+            if action.document_id in seen:
+                continue
+            seen.add(action.document_id)
+            doc = db.query(LegislativeDocument).filter(LegislativeDocument.id == action.document_id).first()
+            if doc:
+                docs_to_score.append((doc, action.action_date.isoformat(), action.text))
+    else:
+        # No date: search across all stored bills
+        all_docs = db.query(LegislativeDocument).all()
+        docs_to_score = [
+            (doc, doc.last_action_date.isoformat() if doc.last_action_date else None, doc.last_action_text)
+            for doc in all_docs
+        ]
 
-    # Deduplicate by document_id — one result per bill
-    seen = set()
     results = []
-    for action in actions:
-        if action.document_id in seen:
-            continue
-        seen.add(action.document_id)
-
-        doc = db.query(LegislativeDocument).filter(LegislativeDocument.id == action.document_id).first()
-        if not doc:
-            continue
-
+    for doc, action_date, action_text in docs_to_score:
         prompt_score = score_against_prompt(doc, topics, keywords)
+        if not parsed_date and prompt_score == 0:
+            continue  # Skip completely unrelated bills when no date filter applied
         sp_name, sp_party, sp_state = extract_sponsor_info(doc.api_raw)
-
         results.append({
             "source_id": doc.source_id,
             "title": doc.title,
@@ -453,8 +461,8 @@ def live_search(
             "bill_number": doc.bill_number,
             "origin_chamber": doc.origin_chamber,
             "policy_area": doc.policy_area,
-            "action_date": action.action_date.isoformat(),
-            "action_text": action.text,
+            "action_date": action_date,
+            "action_text": action_text,
             "last_action_date": doc.last_action_date.isoformat() if doc.last_action_date else None,
             "last_action_text": doc.last_action_text,
             "subjects": [s.name for s in doc.subjects],
