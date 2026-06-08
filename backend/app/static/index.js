@@ -27,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterChamber = document.getElementById('filter-chamber');
     const filterBillType = document.getElementById('filter-billtype');
     const btnResetFilters = document.getElementById('btn-reset-filters');
-    const btnSyncTrigger = document.getElementById('btn-sync-trigger');
     const alertBanner = document.getElementById('alert-banner');
     const alertText = document.getElementById('alert-text');
     const preferencesPanel = document.getElementById('preferences-panel');
@@ -461,18 +460,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     filterForm.addEventListener('submit', (e) => { e.preventDefault(); loadBillsFeed(); });
     btnResetFilters.addEventListener('click', () => { filterForm.reset(); setTimeout(loadBillsFeed, 50); });
-
-    // ── Sync button ────────────────────────────────────────────────────────
-    btnSyncTrigger.addEventListener('click', async () => {
-        if (!confirm("Trigger incremental sync for the 119th Congress? Runs in background.")) return;
-        try {
-            const res = await fetch('/sync/backfill/119?limit_bills=100', { method: 'POST' });
-            const data = await res.json();
-            alertBanner.style.display = 'flex';
-            alertText.textContent = data.message || "Backfill started in background.";
-            setTimeout(async () => { await loadOverviewStats(); await loadBillsFeed(); alertBanner.style.display = 'none'; }, 5000);
-        } catch (err) { alert("Failed to connect to backfill service."); }
-    });
 
     // ── Loader helper ──────────────────────────────────────────────────────
     function showLoader(show) {
