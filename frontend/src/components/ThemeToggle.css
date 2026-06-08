@@ -1,0 +1,69 @@
+.theme-toggle {
+  display: flex;
+  width: 64px;
+  height: 32px;
+  padding: 4px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.theme-toggle.is-dark {
+  background-color: #09090b; /* Zinc 950 */
+  border: 1px solid #27272a; /* Zinc 800 */
+}
+
+.theme-toggle.is-light {
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7; /* Zinc 200 */
+}
+
+.theme-toggle-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.theme-icon-bg {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 9999px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+}
+
+.theme-icon-bg.bg-dark {
+  transform: translateX(0);
+  background-color: #27272a; /* Zinc 800 */
+  left: -1px;
+}
+
+.theme-icon-bg.bg-light {
+  transform: translateX(31px);
+  background-color: #e4e4e7; /* Zinc 200 */
+  left: -1px;
+}
+
+.theme-icon-bg.bg-transparent {
+  background-color: transparent;
+  transform: translateX(0);
+  right: -1px;
+}
+
+.theme-icon-bg.bg-transparent-light {
+  background-color: transparent;
+  transform: translateX(-31px);
+  right: -1px;
+}
+
+.icon-white { color: #ffffff; }
+.icon-dark { color: #3f3f46; }
+.icon-grey { color: #71717a; }
+.icon-black { color: #000000; }

@@ -197,7 +197,8 @@ def search_documents(
         query = query.filter(
             or_(
                 LegislativeDocument.title.ilike(f"%{keyword}%"),
-                LegislativeDocument.last_action_text.ilike(f"%{keyword}%")
+                LegislativeDocument.last_action_text.ilike(f"%{keyword}%"),
+                LegislativeDocument.source_id.ilike(f"%{keyword}%")
             )
         )
     if subject:
@@ -424,17 +425,21 @@ def live_search(
     topics = expansion.get("topics", [])
     keywords = expansion.get("keywords", [])
 
-    from sqlalchemy import or_, cast
-    from sqlalchemy.dialects.postgresql import JSONB
+    from sqlalchemy import or_, cast, func, text as sa_text
+    from sqlalchemy.dialects.postgresql import JSONB, ARRAY as PG_ARRAY
+    from sqlalchemy.types import Text
 
     # Build a SQL pre-filter so we only load bills that plausibly match the prompt.
     # This avoids scoring every bill in Python — only the candidate set reaches Python.
     candidate_filters = []
 
     # Any stored relevance_topic overlaps with expanded topics (JSONB ?| operator)
+    # The ?| operator requires text[] on the right side, not JSONB
     if topics:
         candidate_filters.append(
-            LegislativeDocument.relevance_topics.cast(JSONB).op("?|")(topics)
+            LegislativeDocument.relevance_topics.cast(JSONB).op("?|")(
+                cast(topics, PG_ARRAY(Text))
+            )
         )
 
     # Title or policy_area contains any keyword (case-insensitive)
@@ -908,11 +913,21 @@ def export_json(include_raw: bool = False, db: Session = Depends(get_db)):
 
 # Serve static files and index.html
 import os
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(static_dir, exist_ok=True)
 
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+frontend_dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
+frontend_assets_dir = os.path.join(frontend_dist_dir, "assets")
+
+if os.path.exists(frontend_assets_dir):
+    app.mount("/assets", StaticFiles(directory=frontend_assets_dir), name="assets")
+
+@app.get("/favicon.svg")
+def read_favicon():
+    return FileResponse(os.path.join(frontend_dist_dir, "favicon.svg"))
+
+@app.get("/icons.svg")
+def read_icons():
+    return FileResponse(os.path.join(frontend_dist_dir, "icons.svg"))
 
 @app.get("/")
 def read_index():
-    return FileResponse(os.path.join(static_dir, "index.html"))
+    return FileResponse(os.path.join(frontend_dist_dir, "index.html"))
