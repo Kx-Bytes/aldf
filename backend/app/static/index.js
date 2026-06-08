@@ -355,11 +355,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const livesearchForm = document.getElementById('livesearch-form');
     const lsPromptEl = document.getElementById('ls-prompt');
     const lsDateEl = document.getElementById('ls-date');
+    const lsDateToggle = document.getElementById('ls-date-toggle');
+    const lsDatePicker = document.getElementById('ls-date-picker');
     const lsLoader = document.getElementById('ls-loader');
     const lsResults = document.getElementById('ls-results');
     const lsEmpty = document.getElementById('ls-empty');
     const lsExpansionBanner = document.getElementById('ls-expansion-banner');
     const lsTopics = document.getElementById('ls-topics');
+
+    lsDateToggle.addEventListener('change', () => {
+        lsDatePicker.style.display = lsDateToggle.checked ? 'block' : 'none';
+        if (!lsDateToggle.checked) lsDateEl.value = '';
+    });
 
     livesearchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
