@@ -1,2 +1,7 @@
 [phases.setup]
 nixPkgs = ["python311"]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm install --legacy-peer-deps && npm run build && cd .."
+]
