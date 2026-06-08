@@ -424,35 +424,66 @@ def live_search(
     topics = expansion.get("topics", [])
     keywords = expansion.get("keywords", [])
 
+    from sqlalchemy import or_, cast
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    # Build a SQL pre-filter so we only load bills that plausibly match the prompt.
+    # This avoids scoring every bill in Python — only the candidate set reaches Python.
+    candidate_filters = []
+
+    # Any stored relevance_topic overlaps with expanded topics (JSONB ?| operator)
+    if topics:
+        candidate_filters.append(
+            LegislativeDocument.relevance_topics.cast(JSONB).op("?|")(topics)
+        )
+
+    # Title or policy_area contains any keyword (case-insensitive)
+    for kw in keywords:
+        candidate_filters.append(LegislativeDocument.title.ilike(f"%{kw}%"))
+        candidate_filters.append(LegislativeDocument.policy_area.ilike(f"%{kw}%"))
+
     if parsed_date:
-        # Date provided: find bills that had an action on that specific date
-        actions = (
-            db.query(BillAction)
+        # Date provided: restrict to bills with an action on that day, then apply
+        # topic/keyword pre-filter on the joined documents.
+        action_subq = (
+            db.query(BillAction.document_id, BillAction.action_date, BillAction.text)
             .filter(BillAction.action_date == parsed_date)
+            .distinct(BillAction.document_id)
+            .subquery()
+        )
+        base_q = (
+            db.query(LegislativeDocument, action_subq.c.action_date, action_subq.c.text)
+            .join(action_subq, LegislativeDocument.id == action_subq.c.document_id)
+        )
+        # Still apply topic/keyword filter when we have signals; otherwise return all
+        # bills active on that date (user may be exploring).
+        if candidate_filters:
+            base_q = base_q.filter(or_(*candidate_filters))
+        rows = base_q.all()
+        docs_to_score = [
+            (doc, action_date.isoformat(), action_text)
+            for doc, action_date, action_text in rows
+        ]
+    else:
+        # No date: pre-filter by topic/keyword match in SQL — never loads the full table.
+        if not candidate_filters:
+            # Prompt produced no topics or keywords; return nothing rather than full scan.
+            return {"date": None, "prompt_expansion": expansion, "total": 0, "results": []}
+        docs = (
+            db.query(LegislativeDocument)
+            .filter(or_(*candidate_filters))
             .all()
         )
-        seen = set()
-        docs_to_score = []
-        for action in actions:
-            if action.document_id in seen:
-                continue
-            seen.add(action.document_id)
-            doc = db.query(LegislativeDocument).filter(LegislativeDocument.id == action.document_id).first()
-            if doc:
-                docs_to_score.append((doc, action.action_date.isoformat(), action.text))
-    else:
-        # No date: search across all stored bills
-        all_docs = db.query(LegislativeDocument).all()
         docs_to_score = [
             (doc, doc.last_action_date.isoformat() if doc.last_action_date else None, doc.last_action_text)
-            for doc in all_docs
+            for doc in docs
         ]
 
     results = []
     for doc, action_date, action_text in docs_to_score:
         prompt_score = score_against_prompt(doc, topics, keywords)
-        if not parsed_date and prompt_score == 0:
-            continue  # Skip completely unrelated bills when no date filter applied
+        if prompt_score == 0:
+            continue
         sp_name, sp_party, sp_state = extract_sponsor_info(doc.api_raw)
         results.append({
             "source_id": doc.source_id,
