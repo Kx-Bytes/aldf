@@ -422,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="card-more">View <i class="fa-solid fa-arrow-right"></i></span>
                         </div>
                     `;
+                    card.addEventListener('click', () => openBillDetails(bill.source_id));
                     lsResults.appendChild(card);
                 });
             }
