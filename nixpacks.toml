@@ -1,5 +1,2 @@
-[variables]
-NODE_VERSION = "22"
-
 [phases.setup]
 nixPkgs = ["python311"]
