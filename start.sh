@@ -6,7 +6,13 @@ cd "$SCRIPT_DIR"
 
 echo "Working directory: $(pwd)"
 
+echo "Building frontend..."
+cd "$SCRIPT_DIR/frontend"
+npm install --legacy-peer-deps
+npm run build
+
 echo "Running database migrations..."
+cd "$SCRIPT_DIR"
 alembic -c "$SCRIPT_DIR/alembic.ini" upgrade head
 
 echo "Starting server..."
