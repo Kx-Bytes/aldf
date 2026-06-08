@@ -343,7 +343,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-primary);
   transition: color 0.2s ease;
 }
-.bill-card:hover .bill-title { color: #fff; }
+.bill-card:hover .bill-title { color: var(--c-teal-bright); }
 
 .bill-sponsor {
   font-size: 0.85rem; color: var(--text-secondary);
