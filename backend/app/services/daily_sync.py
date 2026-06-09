@@ -100,6 +100,11 @@ def process_daily_sync():
         sync_log.end_time = datetime.now()
         db.commit()
         logger.info(sync_log.error_message)
+        try:
+            from .cache import clear_cache
+            clear_cache()
+        except Exception as e:
+            logger.warning(f"Failed to clear cache after daily sync: {e}")
 
     except Exception as e:
         db.rollback()

@@ -371,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     livesearchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const prompt = lsPromptEl.value.trim();
-        const date = lsDateEl.value || null;
+        const date = lsDateToggle.checked ? (lsDateEl.value || null) : null;
         if (!prompt) { alert('Please enter a prompt.'); return; }
 
         lsLoader.style.display = 'flex';
@@ -461,6 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     filterForm.addEventListener('submit', (e) => { e.preventDefault(); loadBillsFeed(); });
     btnResetFilters.addEventListener('click', () => { filterForm.reset(); setTimeout(loadBillsFeed, 50); });
+
 
     // ── Loader helper ──────────────────────────────────────────────────────
     function showLoader(show) {
