@@ -90,6 +90,11 @@ def _bg_backfill(congress: int, max_bills: Optional[int]):
         print(f"Starting background historical backfill for Congress {congress}...")
         run_historical_backfill(db, congress, max_bills)
         print(f"Background historical backfill for Congress {congress} finished.")
+        try:
+            from .services.cache import clear_cache
+            clear_cache()
+        except Exception as e:
+            print(f"Failed to clear cache after backfill: {e}")
     except Exception as e:
         print(f"Background backfill for Congress {congress} failed: {e}")
     finally:
@@ -190,6 +195,21 @@ def search_documents(
     
     if sort_by not in allowed_sort_fields:
         raise HTTPException(status_code=400, detail=f"Invalid sort field: {sort_by}")
+
+    # Cache lookup
+    from .services.cache import get_cache, set_cache, make_search_key
+    params = {
+        "keyword": keyword, "subject": subject, "policy_area": policy_area,
+        "bill_type": bill_type, "congress": congress, 
+        "from_action_date": from_action_date.isoformat() if from_action_date else None,
+        "to_action_date": to_action_date.isoformat() if to_action_date else None, 
+        "sort_by": sort_by, "order": order, "limit": limit, "offset": offset, 
+        "user_prompt": user_prompt, "user_email": user_email, "min_score": min_score
+    }
+    cache_key = make_search_key(params)
+    cached_res = get_cache(cache_key)
+    if cached_res is not None:
+        return cached_res
          
     query = db.query(LegislativeDocument)
     
@@ -277,13 +297,18 @@ def search_documents(
         formatted_results.sort(key=lambda r: r["prompt_score"], reverse=True)
     formatted_results = formatted_results[:limit]
 
-    return {
+    res = {
         "total": total,
         "limit": limit,
         "offset": offset,
         "prompt_expansion": prompt_expansion,
         "results": formatted_results
     }
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.get("/documents/{source_id}/actions")
@@ -364,6 +389,11 @@ def run_ai_for_bill(source_id: str, db: Session = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     process_bill_ai(doc, db=db)
+    try:
+        from .services.cache import clear_cache
+        clear_cache()
+    except Exception as e:
+        pass
     return {
         "source_id": doc.source_id,
         "relevance_score": doc.relevance_score,
@@ -389,6 +419,11 @@ def _bg_ai_backfill(force: bool):
             if i % 10 == 0:
                 print(f"AI backfill progress: {i}/{total}")
         print(f"AI backfill complete: {total} bills processed.")
+        try:
+            from .services.cache import clear_cache
+            clear_cache()
+        except Exception as e:
+            pass
     except Exception as e:
         print(f"AI backfill failed: {e}")
     finally:
@@ -418,6 +453,13 @@ def live_search(
         parsed_date = date_type.fromisoformat(search_date)
     except ValueError:
         raise HTTPException(status_code=400, detail="date must be in YYYY-MM-DD format")
+
+    # Cache lookup
+    from .services.cache import get_cache, set_cache, make_live_search_key
+    cache_key = make_live_search_key({"prompt": prompt, "date": search_date, "user_email": user_email})
+    cached_res = get_cache(cache_key)
+    if cached_res is not None:
+        return cached_res
 
     # Expand prompt (cached if user_email provided)
     expansion = expand_prompt_to_topics(prompt, db=db, user_email=user_email)
@@ -470,12 +512,17 @@ def live_search(
 
     results.sort(key=lambda r: r["prompt_score"], reverse=True)
 
-    return {
+    res = {
         "date": search_date,
         "prompt_expansion": expansion,
         "total": len(results),
         "results": results,
     }
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.post("/sync/backfill-actions")
@@ -567,6 +614,11 @@ def _bg_purge_non_animal(threshold: int):
                 db.commit()
                 deleted += 1
         print(f"Purge complete: {deleted} bills deleted, {scored} newly scored, {total - deleted} kept.")
+        try:
+            from .services.cache import clear_cache
+            clear_cache()
+        except Exception as e:
+            pass
     except Exception as e:
         db.rollback()
         print(f"Purge failed: {e}")
@@ -583,6 +635,11 @@ def clear_all_data(db: Session = Depends(get_db)):
     db.query(Subject).delete()
     db.query(SyncLog).delete()
     db.commit()
+    try:
+        from .services.cache import clear_cache
+        clear_cache()
+    except Exception as e:
+        pass
     return {"message": "All data cleared. Ready for a fresh backfill."}
 
 
@@ -631,6 +688,11 @@ def create_user(body: Dict[str, Any], db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(profile)
+    try:
+        from .services.cache import clear_cache
+        clear_cache()
+    except Exception as e:
+        pass
     return _format_profile(profile)
 
 
@@ -664,6 +726,11 @@ def update_user(email: str, body: Dict[str, Any], db: Session = Depends(get_db))
 
     db.commit()
     db.refresh(profile)
+    try:
+        from .services.cache import clear_cache
+        clear_cache()
+    except Exception as e:
+        pass
     return _format_profile(profile)
 
 
@@ -686,6 +753,11 @@ def list_subjects(db: Session = Depends(get_db)):
     """
     Lists subjects with the count of matched bills.
     """
+    from .services.cache import get_cache, set_cache
+    cache_key = "aldf:cache:subjects"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return cached
     results = db.query(
         Subject.name,
         func.count(LegislativeDocument.id).label("document_count")
@@ -698,10 +770,15 @@ def list_subjects(db: Session = Depends(get_db)):
         Subject.name
     ).all()
     
-    return [
+    res = [
         {"name": name, "document_count": count}
         for name, count in results
     ]
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.get("/stats/overview")
@@ -709,6 +786,11 @@ def get_stats_overview(db: Session = Depends(get_db)):
     """
     Retrieve overview statistics for the active bills database.
     """
+    from .services.cache import get_cache, set_cache
+    cache_key = "aldf:cache:stats:overview"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return cached
     total_active_bills = db.query(LegislativeDocument).count()
     
     unique_subjects = db.query(Subject).join(LegislativeDocument.subjects).distinct().count()
@@ -723,7 +805,7 @@ def get_stats_overview(db: Session = Depends(get_db)):
         func.count(LegislativeDocument.id)
     ).group_by(LegislativeDocument.bill_type).all()
     
-    return {
+    res = {
         "total_active_bills": total_active_bills,
         "unique_subjects": unique_subjects,
         "date_range": {
@@ -732,6 +814,11 @@ def get_stats_overview(db: Session = Depends(get_db)):
         },
         "bills_by_bill_type": {bt: count for bt, count in bill_types}
     }
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.get("/stats/policy-areas")
@@ -739,12 +826,22 @@ def get_stats_policy_areas(db: Session = Depends(get_db)):
     """
     Retrieve document count grouped by policy area.
     """
+    from .services.cache import get_cache, set_cache
+    cache_key = "aldf:cache:stats:policy-areas"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return cached
     results = db.query(
         LegislativeDocument.policy_area,
         func.count(LegislativeDocument.id)
     ).group_by(LegislativeDocument.policy_area).all()
     
-    return {pa: count for pa, count in results if pa}
+    res = {pa: count for pa, count in results if pa}
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.get("/stats/subjects")
@@ -752,12 +849,22 @@ def get_stats_subjects(db: Session = Depends(get_db)):
     """
     Retrieve document count grouped by subject.
     """
+    from .services.cache import get_cache, set_cache
+    cache_key = "aldf:cache:stats:subjects"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return cached
     results = db.query(
         Subject.name,
         func.count(LegislativeDocument.id)
     ).join(LegislativeDocument.subjects).group_by(Subject.name).all()
     
-    return {name: count for name, count in results}
+    res = {name: count for name, count in results}
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception as e:
+        pass
+    return res
 
 
 @app.get("/export/csv")

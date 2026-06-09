@@ -355,23 +355,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const livesearchForm = document.getElementById('livesearch-form');
     const lsPromptEl = document.getElementById('ls-prompt');
     const lsDateEl = document.getElementById('ls-date');
+    const lsDateToggle = document.getElementById('ls-date-toggle');
+    const lsDatePicker = document.getElementById('ls-date-picker');
     const lsLoader = document.getElementById('ls-loader');
     const lsResults = document.getElementById('ls-results');
     const lsEmpty = document.getElementById('ls-empty');
     const lsExpansionBanner = document.getElementById('ls-expansion-banner');
     const lsTopics = document.getElementById('ls-topics');
 
-    // Default date to yesterday
-    const lsDefault = new Date();
-    lsDefault.setDate(lsDefault.getDate() - 1);
-    lsDateEl.value = formatDateString(lsDefault);
+    lsDateToggle.addEventListener('change', () => {
+        lsDatePicker.style.display = lsDateToggle.checked ? 'block' : 'none';
+        if (!lsDateToggle.checked) lsDateEl.value = '';
+    });
 
     livesearchForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const prompt = lsPromptEl.value.trim();
-        const date = lsDateEl.value;
+        const date = lsDateToggle.checked ? (lsDateEl.value || null) : null;
         if (!prompt) { alert('Please enter a prompt.'); return; }
-        if (!date) { alert('Please select a date.'); return; }
 
         lsLoader.style.display = 'flex';
         lsResults.innerHTML = '';
@@ -421,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="card-more">View <i class="fa-solid fa-arrow-right"></i></span>
                         </div>
                     `;
+                    card.addEventListener('click', () => openBillDetails(bill.source_id));
                     lsResults.appendChild(card);
                 });
             }

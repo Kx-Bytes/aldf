@@ -1,0 +1,7 @@
+[phases.setup]
+nixPkgs = ["python311", "nodejs_22"]
+
+[phases.build]
+cmds = [
+  "cd frontend && rm -f package-lock.json && npm install --legacy-peer-deps && npm run build"
+]

@@ -292,7 +292,7 @@
                 <div class="prefs-container glass-panel">
                     <div class="prefs-header">
                         <h2><i class="fa-solid fa-satellite-dish"></i> Live Search</h2>
-                        <p class="prefs-subtitle">Search Congress.gov directly for animal-related bills updated on a specific date matching your prompt.</p>
+                        <p class="prefs-subtitle">Search stored bills by prompt. Optionally filter by date to find bills with actions on that specific day.</p>
                     </div>
                     <form id="livesearch-form" class="prefs-form">
                         <div class="prefs-field">
@@ -300,10 +300,16 @@
                             <textarea id="ls-prompt" rows="2" placeholder="e.g. factory farming, wildlife trafficking, animal testing"></textarea>
                         </div>
                         <div class="prefs-field">
-                            <label for="ls-date">Date</label>
-                            <div class="input-with-icon">
-                                <i class="fa-solid fa-calendar"></i>
-                                <input type="date" id="ls-date" style="padding-left:2.5rem;">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+                                <input type="checkbox" id="ls-date-toggle" style="width:1rem;height:1rem;cursor:pointer;">
+                                Filter by action date
+                            </label>
+                            <div id="ls-date-picker" style="display:none;margin-top:0.5rem;">
+                                <div class="input-with-icon">
+                                    <i class="fa-solid fa-calendar"></i>
+                                    <input type="date" id="ls-date" style="padding-left:2.5rem;">
+                                </div>
+                                <p style="margin:0.35rem 0 0;font-size:0.8rem;opacity:0.55;">Returns bills with actions on this specific day.</p>
                             </div>
                         </div>
                         <div class="prefs-actions">
@@ -324,7 +330,7 @@
                     <div id="ls-empty" style="display:none;margin-top:1.5rem;" class="empty-state glass-panel">
                         <div class="empty-icon"><i class="fa-solid fa-calendar-xmark"></i></div>
                         <h3>No Matching Bills Found</h3>
-                        <p>No animal-related bills matched your prompt for that date.</p>
+                        <p>No bills matched your prompt. Try different keywords or pick a specific date.</p>
                     </div>
                 </div>
             </div>

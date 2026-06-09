@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR"
 echo "Working directory: $(pwd)"
 
 echo "Running database migrations..."
+cd "$SCRIPT_DIR"
 alembic -c "$SCRIPT_DIR/alembic.ini" upgrade head
 
 echo "Starting server..."
