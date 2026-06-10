@@ -30,6 +30,15 @@ const YESTERDAY_ISO = (() => {
   return d.toISOString().split('T')[0];
 })();
 
+// Congress.gov updateDate lags action dates by 1-2 days, so the sync
+// captures bills whose actions happened up to 2 days ago. Show that
+// same window in the "yesterday" tab so nothing falls through the gap.
+const TWO_DAYS_AGO_ISO = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 2);
+  return d.toISOString().split('T')[0];
+})();
+
 export default function Dashboard({ onLogout, theme, toggleTheme }) {
   // ── Preferences / Auth State
   const [currentUserEmail, setCurrentUserEmail] = useState('you@aldf.org');
@@ -127,7 +136,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
       let params = { limit: 20, sortBy: 'last_action_date', order: 'desc' };
 
       if (activeTab === 'yesterday') {
-        params.fromActionDate = YESTERDAY_ISO;
+        params.fromActionDate = TWO_DAYS_AGO_ISO;
         params.toActionDate = YESTERDAY_ISO;
       } else if (activeTab === 'recent') {
         params.limit = 40;
