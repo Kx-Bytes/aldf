@@ -7,14 +7,34 @@
  * If the proxy is unavailable, change API_BASE to "http://localhost:8000".
  */
 
+export function getToken() {
+  return localStorage.getItem('aldf_token');
+}
+
+export function setToken(token) {
+  localStorage.setItem('aldf_token', token);
+}
+
+export function clearToken() {
+  localStorage.removeItem('aldf_token');
+  localStorage.removeItem('aldf_email');
+}
+
 const API_BASE = import.meta.env.PROD ? '' : '/api';
 
 // ── Helper ──────────────────────────────────────────────────────────────────
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
+  const token = getToken();
+  const authHeader = token ? { Authorization: `Bearer ${token}` } : {};
+
   try {
     const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
+      headers: { 
+        'Content-Type': 'application/json', 
+        ...authHeader,
+        ...options.headers 
+      },
       ...options,
     });
     if (!res.ok) {
@@ -149,3 +169,27 @@ export async function fetchLiveSearch(prompt, date, userEmail = null) {
     body: JSON.stringify({ prompt, date, user_email: userEmail })
   });
 }
+
+// ── Auth API ─────────────────────────────────────────────────────────────────
+
+export async function signup(email, password) {
+  return request('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function login(email, password) {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function resendVerification(email) {
+  return request('/auth/resend-verification', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+

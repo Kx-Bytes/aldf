@@ -9,3 +9,6 @@ psycopg2-binary>=2.9.9
 apscheduler>=3.10.0
 pytz>=2024.1
 redis>=5.0.0
+bcrypt>=4.1.0
+python-jose[cryptography]>=3.3.0
+fastapi-mail>=1.4.1

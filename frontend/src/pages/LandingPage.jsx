@@ -1,43 +1,71 @@
 import { useState } from 'react';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { Sparkles, ArrowRight, X, Download, Brain, FileSearch, Mail, Scale, Target, LineChart } from 'lucide-react';
+import { Sparkles, ArrowRight, X, Download, Brain, FileSearch, Mail, Scale, Target, LineChart, CheckCircle, RefreshCw } from 'lucide-react';
 import './LandingPage.css';
+import { signup, login, resendVerification, setToken } from '../services/api';
 
-export default function LandingPage({ onLogin, theme, toggleTheme }) {
+export default function LandingPage({ onLogin, theme, toggleTheme, justVerified, onVerifiedDismiss }) {
   const [authMode, setAuthMode] = useState('login'); // 'login', 'signup'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false); // "check your email" state
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMsg, setResendMsg] = useState('');
 
   const scrollToAuth = (mode) => {
     setAuthMode(mode);
+    setError('');
     setTimeout(() => {
       document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 50);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const storedUsers = JSON.parse(localStorage.getItem('aldf_users') || '[]');
+    setError('');
+    setLoading(true);
 
-    if (authMode === 'signup') {
-      const userExists = storedUsers.find(u => u.email === email);
-      if (userExists) {
-        setError(true); setErrorMsg('Email already exists.');
-        setTimeout(() => setError(false), 3000);
-        return;
-      }
-      localStorage.setItem('aldf_users', JSON.stringify([...storedUsers, { email, password }]));
-      onLogin();
-    } else if (authMode === 'login') {
-      const user = storedUsers.find(u => u.email === email);
-      if (user && user.password === password) {
-        onLogin();
+    try {
+      if (authMode === 'signup') {
+        await signup(email, password);
+        setSignupSuccess(true); // Show "check your email" screen
       } else {
-        setError(true); setErrorMsg('Invalid email or password.');
-        setTimeout(() => setError(false), 3000);
+        const res = await login(email, password);
+        setToken(res.access_token);
+        localStorage.setItem('aldf_email', res.email);
+        onLogin(res.email);
       }
+    } catch (err) {
+      // Parse the error message from the API response
+      const msg = err.message || '';
+      if (msg.includes('403')) {
+        setError('Your email is not verified yet. Please check your inbox.');
+      } else if (msg.includes('401')) {
+        setError('Invalid email or password.');
+      } else if (msg.includes('409')) {
+        setError('An account with this email already exists.');
+      } else if (msg.includes('400')) {
+        setError('Password must be at least 6 characters.');
+      } else {
+        setError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendLoading(true);
+    setResendMsg('');
+    try {
+      await resendVerification(email);
+      setResendMsg('Verification email resent! Check your inbox.');
+    } catch {
+      setResendMsg('Failed to resend. Please try again.');
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -157,56 +185,103 @@ export default function LandingPage({ onLogin, theme, toggleTheme }) {
       {/* Auth Section */}
       <section id="auth-section" className="section-wrapper auth-section">
         <div className="auth-card">
-          <div className="auth-logo">
-            <Scale size={20} strokeWidth={2.5} /> ALDF
-          </div>
-          <h2 className="auth-title">{authMode === 'login' ? 'Welcome back' : 'Create an account'}</h2>
-          <p className="auth-subtitle">
-            {authMode === 'login' ? 'Sign in to access your command center dashboard' : 'Join to track animal welfare legislation'}
-          </p>
 
-          <form onSubmit={handleSubmit} className="auth-form">
-            <div className="input-group">
-              <label>Email address</label>
-              <input 
-                type="email" 
-                className={`input-field ${error ? 'error-shake' : ''}`}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+          {/* ── Email Verified Banner ── */}
+          {justVerified && (
+            <div className="auth-verified-banner">
+              <CheckCircle size={18} />
+              <span>Email verified! You can now sign in.</span>
+              <button onClick={onVerifiedDismiss} className="auth-banner-close"><X size={14} /></button>
             </div>
-            <div className="input-group">
-              <div className="password-header">
-                <label>Password</label>
-                {authMode === 'login' && <a href="#" className="forgot-link">Forgot password?</a>}
+          )}
+
+          {signupSuccess ? (
+            /* ── Check Your Email Screen ── */
+            <div className="auth-success-screen">
+              <div className="auth-success-icon"><Mail size={40} /></div>
+              <h2 className="auth-title">Check your inbox</h2>
+              <p className="auth-subtitle">
+                We sent a verification link to <strong>{email}</strong>. Click it to activate your account, then come back here to sign in.
+              </p>
+              <p className="auth-subtitle" style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>
+                Didn't get it? Check your spam folder or resend below.
+              </p>
+              <button
+                className="btn-submit"
+                style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
+                onClick={handleResend}
+                disabled={resendLoading}
+              >
+                <RefreshCw size={16} className={resendLoading ? 'spin' : ''} />
+                {resendLoading ? 'Sending...' : 'Resend verification email'}
+              </button>
+              {resendMsg && <p className="auth-resend-msg">{resendMsg}</p>}
+              <button
+                className="forgot-link"
+                style={{ marginTop: '1.5rem', background: 'none', border: 'none', cursor: 'pointer' }}
+                onClick={() => { setSignupSuccess(false); setAuthMode('login'); }}
+              >
+                Back to sign in
+              </button>
+            </div>
+          ) : (
+            /* ── Login / Signup Form ── */
+            <>
+              <div className="auth-logo">
+                <Scale size={20} strokeWidth={2.5} /> ALDF
               </div>
-              <input 
-                type="password" 
-                className={`input-field ${error ? 'error-shake' : ''}`}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              {error && <span className="error-text">{errorMsg}</span>}
-            </div>
-            
-            <button type="submit" className="btn-submit">
-              {authMode === 'login' ? 'Sign in to Dashboard' : 'Sign Up'} <ArrowRight size={16} />
-            </button>
-          </form>
+              <h2 className="auth-title">{authMode === 'login' ? 'Welcome back' : 'Create an account'}</h2>
+              <p className="auth-subtitle">
+                {authMode === 'login' ? 'Sign in to access your command center dashboard' : 'Join to track animal welfare legislation'}
+              </p>
 
-          <div className="auth-footer-divider">
-            <span>OR</span>
-          </div>
+              <form onSubmit={handleSubmit} className="auth-form">
+                <div className="input-group">
+                  <label>Email address</label>
+                  <input
+                    type="email"
+                    className={`input-field ${error ? 'error-shake' : ''}`}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="input-group">
+                  <div className="password-header">
+                    <label>Password</label>
+                  </div>
+                  <input
+                    type="password"
+                    className={`input-field ${error ? 'error-shake' : ''}`}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                  {error && <span className="error-text">{error}</span>}
+                </div>
 
-          <div className="auth-footer">
-            {authMode === 'login' ? (
-              <p>New to ALDF? <a onClick={() => setAuthMode('signup')}>Create an account</a></p>
-            ) : (
-              <p>Already have an account? <a onClick={() => setAuthMode('login')}>Sign in</a></p>
-            )}
-          </div>
+                <button type="submit" className="btn-submit" disabled={loading}>
+                  {loading
+                    ? 'Please wait...'
+                    : authMode === 'login' ? 'Sign in to Dashboard' : 'Create Account'}
+                  {!loading && <ArrowRight size={16} />}
+                </button>
+              </form>
+
+              <div className="auth-footer-divider">
+                <span>OR</span>
+              </div>
+
+              <div className="auth-footer">
+                {authMode === 'login' ? (
+                  <p>New to ALDF? <a onClick={() => { setAuthMode('signup'); setError(''); }}>Create an account</a></p>
+                ) : (
+                  <p>Already have an account? <a onClick={() => { setAuthMode('login'); setError(''); }}>Sign in</a></p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </section>
 

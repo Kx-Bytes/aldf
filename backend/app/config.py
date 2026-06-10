@@ -12,6 +12,19 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = "redis://localhost:6379"
 
+    # Auth / JWT
+    SECRET_KEY: str = "change-me-in-production-use-a-long-random-string"
+
+    # Email / SMTP (for verification emails)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
+    # Frontend base URL (used in verification email links)
+    FRONTEND_URL: str = "http://localhost:5173"
+
     # Allow reading from a .env file relative to the project root
     model_config = SettingsConfigDict(
         env_file=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"),

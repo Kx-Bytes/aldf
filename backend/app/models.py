@@ -123,6 +123,13 @@ class UserProfile(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+
+    # Auth fields
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verification_token: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, unique=True)
+
+    # Preferences
     prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     expanded_topics: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)  # persisted expansion cache
     frequency: Mapped[str] = mapped_column(String(20), default="daily")  # 'daily' | 'weekly'

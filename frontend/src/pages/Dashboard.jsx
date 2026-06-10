@@ -39,9 +39,9 @@ const TWO_DAYS_AGO_ISO = (() => {
   return d.toISOString().split('T')[0];
 })();
 
-export default function Dashboard({ onLogout, theme, toggleTheme }) {
+export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
   // ── Preferences / Auth State
-  const [currentUserEmail, setCurrentUserEmail] = useState('you@aldf.org');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [prefPrompt, setPrefPrompt] = useState('');
   const [prefFrequency, setPrefFrequency] = useState('daily');
   const [prefScope, setPrefScope] = useState('federal');
@@ -108,7 +108,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
       .catch(e => console.error('Failed to load review stats'));
 
     // Load prefs
-    getUser(currentUserEmail).then(data => {
+    getUser(userEmail).then(data => {
       if (data) {
         setPrefPrompt(data.prompt || '');
         setPrefFrequency(data.frequency || 'daily');
@@ -122,7 +122,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
         }
       }
     }).catch(e => console.log('No prefs found'));
-  }, []);
+  }, [userEmail]);
 
   useEffect(() => {
     if (activeTab === 'yesterday' || activeTab === 'recent' || activeTab === 'search') {
@@ -202,7 +202,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
     setLoading(true);
     setIsFallback(false);
     try {
-      const data = await fetchLiveSearch(liveSearchInput, isLiveSearchDateEnabled ? selectedDate : null, currentUserEmail);
+      const data = await fetchLiveSearch(liveSearchInput, isLiveSearchDateEnabled ? selectedDate : null, userEmail);
       const sorted = (data.results || [])
         .slice()
         .sort((a, b) => (b.prompt_score ?? b.relevance_score ?? 0) - (a.prompt_score ?? a.relevance_score ?? 0))
@@ -221,7 +221,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
   const handleSavePrefs = async () => {
     try {
       const payload = {
-        email: currentUserEmail,
+        email: userEmail,
         prompt: prefPrompt,
         frequency: prefFrequency,
         scope: prefScope,
@@ -315,9 +315,26 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
           </div>
           <div className="header-right" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
-            <button className="btn btn-logout" onClick={onLogout}>
-              <i className="fa-solid fa-right-from-bracket"></i>
-            </button>
+            <div className="user-menu-container" style={{ position: 'relative' }}>
+              <button 
+                className="btn btn-user" 
+                onClick={() => setUserMenuOpen(!userMenuOpen)}
+              >
+                <i className="fa-solid fa-user"></i>
+              </button>
+
+              {userMenuOpen && (
+                <>
+                  <div className="user-menu-backdrop" onClick={() => setUserMenuOpen(false)}></div>
+                  <div className="user-menu-dropdown">
+                    <div className="user-menu-email">{userEmail}</div>
+                    <button className="user-menu-item" onClick={onLogout}>
+                      <i className="fa-solid fa-right-from-bracket"></i> Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 
@@ -507,7 +524,13 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
                       <label>Your Email <span style={{color: 'var(--c-teal)'}}>*</span></label>
                       <div className="input-with-icon">
                         <i className="fa-solid fa-envelope"></i>
-                        <input type="email" value={currentUserEmail} onChange={e=>setCurrentUserEmail(e.target.value)} />
+                        <input 
+                           type="email" 
+                           value={userEmail || ''} 
+                           readOnly 
+                           disabled 
+                           style={{ opacity: 0.7, cursor: 'not-allowed' }} 
+                        />
                       </div>
                   </div>
                   <div className="prefs-field">

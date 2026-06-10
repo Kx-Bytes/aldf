@@ -1018,6 +1018,123 @@ def export_json(include_raw: bool = False, db: Session = Depends(get_db)):
         headers={"Content-Disposition": "attachment; filename=animal_legislation_export.json"}
     )
 
+# ── Auth Endpoints ────────────────────────────────────────────────────────────
+
+@app.post("/auth/signup")
+async def auth_signup(body: Dict[str, Any], db: Session = Depends(get_db)):
+    """Register a new user. Sends a verification email before granting access."""
+    from .services.auth import hash_password, generate_verification_token
+    from .services.email_service import send_verification_email
+
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "").strip()
+
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+    if not password or len(password) < 6:
+        raise HTTPException(status_code=400, detail="password must be at least 6 characters")
+
+    existing = db.query(UserProfile).filter(UserProfile.email == email).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    token = generate_verification_token()
+    profile = UserProfile(
+        email=email,
+        password_hash=hash_password(password),
+        is_verified=False,
+        verification_token=token,
+    )
+    db.add(profile)
+    db.commit()
+
+    try:
+        await send_verification_email(email, token)
+    except Exception as e:
+        print(f"[auth/signup] Email send failed: {e}")
+        # Don't block signup if email fails — user can request a resend later
+
+    return {"message": "Account created. Please check your email to verify your account."}
+
+
+@app.get("/auth/verify/{token}")
+def auth_verify(token: str, db: Session = Depends(get_db)):
+    """Verify a user's email address via the token link sent in the signup email."""
+    from fastapi.responses import RedirectResponse
+    from .config import settings as cfg
+
+    profile = db.query(UserProfile).filter(UserProfile.verification_token == token).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Invalid or expired verification token")
+
+    profile.is_verified = True
+    profile.verification_token = None
+    db.commit()
+
+    # Redirect to the frontend login page with a success flag
+    return RedirectResponse(url=f"{cfg.FRONTEND_URL}?verified=true")
+
+
+@app.post("/auth/login")
+def auth_login(body: Dict[str, Any], db: Session = Depends(get_db)):
+    """Authenticate a verified user. Returns a JWT access token."""
+    from .services.auth import verify_password, create_access_token
+
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "").strip()
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="email and password are required")
+
+    profile = db.query(UserProfile).filter(UserProfile.email == email).first()
+
+    if not profile or not profile.password_hash:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not verify_password(password, profile.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not profile.is_verified:
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in")
+
+    token = create_access_token({"sub": profile.email})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "email": profile.email,
+    }
+
+
+@app.get("/auth/me")
+def auth_me(db: Session = Depends(get_db), authorization: Optional[str] = None):
+    """Return the currently authenticated user's profile."""
+    raise HTTPException(status_code=501, detail="Use /auth/me with Authorization header")
+
+
+@app.post("/auth/resend-verification")
+async def auth_resend_verification(body: Dict[str, Any], db: Session = Depends(get_db)):
+    """Resend the verification email if the user hasn't verified yet."""
+    from .services.auth import generate_verification_token
+    from .services.email_service import send_verification_email
+
+    email = (body.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="email is required")
+
+    profile = db.query(UserProfile).filter(UserProfile.email == email).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="No account found with this email")
+    if profile.is_verified:
+        return {"message": "This account is already verified. Please log in."}
+
+    token = generate_verification_token()
+    profile.verification_token = token
+    db.commit()
+
+    await send_verification_email(email, token)
+    return {"message": "Verification email resent. Please check your inbox."}
+
+
 # Serve React build (frontend/dist) as static files
 frontend_dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "frontend", "dist")
 frontend_assets_dir = os.path.join(frontend_dist_dir, "assets")
@@ -1035,4 +1152,8 @@ def read_icons():
 
 @app.get("/")
 def read_index():
+    return FileResponse(os.path.join(frontend_dist_dir, "index.html"))
+
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
     return FileResponse(os.path.join(frontend_dist_dir, "index.html"))
