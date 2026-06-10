@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   fetchBills, 
   fetchStats, 
@@ -126,21 +126,22 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
 
   useEffect(() => {
     if (activeTab === 'yesterday' || activeTab === 'recent' || activeTab === 'search') {
-      loadBills();
+      loadBills(activeTab);
     }
   }, [activeTab]);
 
-  const loadBills = async () => {
+  const loadBillsRef = useRef(null);
+  loadBillsRef.current = async (tab) => {
     setLoading(true);
     try {
       let params = { limit: 20, sortBy: 'last_action_date', order: 'desc' };
 
-      if (activeTab === 'yesterday') {
+      if (tab === 'yesterday') {
         params.fromActionDate = TWO_DAYS_AGO_ISO;
         params.toActionDate = YESTERDAY_ISO;
-      } else if (activeTab === 'recent') {
+      } else if (tab === 'recent') {
         params.limit = 40;
-      } else if (activeTab === 'search') {
+      } else if (tab === 'search') {
         if (!filtersApplied) {
           setBills([]); setIsFallback(false); setLoading(false); return;
         }
@@ -156,31 +157,26 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
         }
       }
 
-      // Feature 4: Apply Global Prompts to yesterday tab only
-      if (activeTab === 'yesterday' && prefPrompt) {
-        params.userPrompt = prefPrompt;
-        params.minScore = prefMinScore;
-        params.userEmail = currentUserEmail;
-      }
 
       const data = await fetchBills(params);
       let results = data.results || [];
-      
-      // Client-side chamber filter since backend doesn't support it directly
-      if (activeTab === 'search' && filterChamber) {
+
+      if (tab === 'search' && filterChamber) {
         results = results.filter(b => (b.origin_chamber || 'House').toLowerCase() === filterChamber.toLowerCase());
       }
 
       setBills(results);
       setIsFallback(false);
 
-      if (activeTab === 'yesterday') setYesterdayCount(data.total || 0);
+      if (tab === 'yesterday') setYesterdayCount(data.total || 0);
     } catch (err) {
       setBills([]);
     } finally {
       setLoading(false);
     }
   };
+
+  const loadBills = useCallback((tab) => loadBillsRef.current(tab), []);
 
   const handleTabClick = (tab) => {
     setActiveTab(tab);
@@ -198,7 +194,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
   const handleApplyFilters = () => {
     setFiltersApplied(true);
     setFilterByPrompt(false);
-    setTimeout(() => loadBills(), 0);
+    setTimeout(() => loadBills('search'), 0);
   };
 
   const handleLiveSearch = async () => {
@@ -335,7 +331,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
               <p className="stat-subtext">New legislative actions</p>
             </div>
           </div>
-          <div className="stat-card" style={{cursor: 'pointer'}} onClick={() => { handleTabClick('search'); setFilterKeyword(''); setFilterSubject(''); setFilterChamber(''); setFilterBillType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterByPrompt(false); setFiltersApplied(true); setTimeout(() => loadBills(), 0); }}>
+          <div className="stat-card" style={{cursor: 'pointer'}} onClick={() => { handleTabClick('search'); setFilterKeyword(''); setFilterSubject(''); setFilterChamber(''); setFilterBillType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterByPrompt(false); setFiltersApplied(true); setTimeout(() => loadBills('search'), 0); }}>
             <div className="stat-icon" style={{color: 'var(--c-teal-bright)'}}><i className="fa-solid fa-folder-open"></i></div>
             <div className="stat-content">
               <p className="stat-label">Total Active Bills</p>
@@ -343,7 +339,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme }) {
               <p className="stat-subtext">Stored in database</p>
             </div>
           </div>
-          <div className="stat-card" style={{cursor: 'pointer'}} onClick={() => { handleTabClick('search'); setFilterKeyword(''); setFilterSubject(''); setFilterChamber(''); setFilterBillType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterByPrompt(true); setFiltersApplied(true); setTimeout(() => loadBills(), 0); }}>
+          <div className="stat-card" style={{cursor: 'pointer'}} onClick={() => { handleTabClick('search'); setFilterKeyword(''); setFilterSubject(''); setFilterChamber(''); setFilterBillType(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterByPrompt(true); setFiltersApplied(true); setTimeout(() => loadBills('search'), 0); }}>
             <div className="stat-icon" style={{color: '#8b5cf6'}}><i className="fa-solid fa-tags"></i></div>
             <div className="stat-content">
               <p className="stat-label">Matching Your Interests</p>
