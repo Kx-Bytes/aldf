@@ -152,8 +152,10 @@ def _normalize_output(raw: Dict[str, Any]) -> Tuple[int, List[str], str, str]:
 def expand_prompt_to_topics(user_prompt: str, db: Optional[Session] = None, user_email: Optional[str] = None) -> Dict[str, Any]:
     """Map a free-text user prompt to a structured set of RELEVANCE_TOPICS and keywords.
 
-    Checks UserProfile.expanded_topics first (persistent cache). Falls back to a single
-    LLM call if not cached. Result is stored back on the UserProfile when db + email given.
+    Cache hierarchy:
+      1. Redis (keyed by prompt text, 1 hour TTL) — fastest, shared across users
+      2. UserProfile.expanded_topics (persistent per-user DB cache)
+      3. LLM call — only when both caches miss
 
     Returns dict with keys:
         topics   – list of matched RELEVANCE_TOPICS strings
@@ -162,10 +164,20 @@ def expand_prompt_to_topics(user_prompt: str, db: Optional[Session] = None, user
     if not user_prompt or not user_prompt.strip():
         return {"topics": [], "keywords": []}
 
-    # Check persistent cache on UserProfile
+    from .cache import get_cache, set_cache
+    import hashlib
+    prompt_key = "aldf:cache:expansion:" + hashlib.sha256(user_prompt.strip().encode()).hexdigest()
+
+    # 1. Redis cache
+    cached = get_cache(prompt_key)
+    if cached is not None:
+        return cached
+
+    # 2. Persistent UserProfile cache
     if db and user_email:
         profile = db.query(UserProfile).filter(UserProfile.email == user_email).first()
         if profile and profile.expanded_topics and profile.prompt == user_prompt:
+            set_cache(prompt_key, profile.expanded_topics, expire=3600)
             return profile.expanded_topics
 
     url = f"{settings.OPENROUTER_BASE_URL.rstrip('/')}/chat/completions"
@@ -205,6 +217,12 @@ def expand_prompt_to_topics(user_prompt: str, db: Optional[Session] = None, user
     except Exception as e:
         logger.warning(f"Prompt expansion failed, falling back to keyword-only: {e}")
         result = {"topics": [], "keywords": [w.lower() for w in user_prompt.strip().split() if len(w) > 3]}
+
+    # Store in Redis (1 hour)
+    try:
+        set_cache(prompt_key, result, expire=3600)
+    except Exception:
+        pass
 
     # Persist to UserProfile cache
     if db and user_email:

@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  fetchBills, 
-  fetchStats, 
-  fetchBillDetails, 
-  fetchBillActions, 
+import {
+  fetchBills,
+  fetchStats,
+  fetchBillDetails,
+  fetchBillActions,
   fetchLiveSearch,
   triggerAIProcess,
   getUser,
   updateUser,
   createUser,
-  fetchSubjects
+  fetchSubjects,
+  fetchReviewBills
 } from '../services/api';
 import { ThemeToggle } from '../components/ThemeToggle';
 import './Dashboard.css';
@@ -76,7 +77,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
   const [totalBills, setTotalBills] = useState(0);
   const [matchingInterests, setMatchingInterests] = useState(0);
   const [yesterdayCount, setYesterdayCount] = useState(0);
-  const [reviewCount, setReviewCount] = useState(0);
+  const [reviewedBills, setReviewedBills] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // ── Modal State
@@ -99,13 +100,6 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
       
     fetchSubjects().then(data => setSubjectList(data || []));
 
-    // Fetch review count for High Relevance (>=80)
-    fetchBills({ limit: 20, sortBy: 'last_action_date', order: 'desc' })
-      .then(res => {
-        const results = res.results || [];
-        setReviewCount(results.filter(r => (r.relevance_score || 0) >= 80).length);
-      })
-      .catch(e => console.error('Failed to load review stats'));
 
     // Load prefs
     getUser(userEmail).then(data => {
@@ -115,7 +109,8 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
         setPrefScope(data.scope || 'federal');
         setPrefMinScore(data.min_relevance_score || 70);
         setPrefExpandedTopics(data.expanded_topics || []);
-        
+        setReviewedBills(data.review_bills || []);
+
         if (data.prompt) {
           fetchBills({ userPrompt: data.prompt, minScore: data.min_relevance_score, limit: 1 })
             .then(res => setMatchingInterests(res.total || 0));
@@ -125,7 +120,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
   }, [userEmail]);
 
   useEffect(() => {
-    if (activeTab === 'yesterday' || activeTab === 'recent' || activeTab === 'search') {
+    if (activeTab === 'yesterday' || activeTab === 'recent' || activeTab === 'search' || activeTab === 'review') {
       loadBills(activeTab);
     }
   }, [activeTab]);
@@ -141,6 +136,13 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
         params.toActionDate = YESTERDAY_ISO;
       } else if (tab === 'recent') {
         params.limit = 40;
+      } else if (tab === 'review') {
+        if (!userEmail) { setBills([]); setLoading(false); return; }
+        const data = await fetchReviewBills(userEmail);
+        setBills(data.results || []);
+        setIsFallback(false);
+        setLoading(false);
+        return;
       } else if (tab === 'search') {
         if (!filtersApplied) {
           setBills([]); setIsFallback(false); setLoading(false); return;
@@ -243,6 +245,22 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
     }
   };
   
+  const handleBookmarkToggle = async (e, bill) => {
+    e.stopPropagation();
+    if (!userEmail) return;
+    const isBookmarked = reviewedBills.includes(bill.source_id);
+    const updated = isBookmarked
+      ? reviewedBills.filter(id => id !== bill.source_id)
+      : [...reviewedBills, bill.source_id];
+    setReviewedBills(updated);
+    try {
+      await updateUser(userEmail, { review_bills: updated });
+      if (activeTab === 'review') loadBills('review');
+    } catch (e) {
+      setReviewedBills(reviewedBills); // revert on failure
+    }
+  };
+
   const handleBillClick = async (bill) => {
     setSelectedBill(bill);
     setModalTab('overview');
@@ -364,11 +382,11 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
               <p className="stat-subtext">Based on your prompt</p>
             </div>
           </div>
-          <div className="stat-card">
+          <div className="stat-card" style={{cursor: 'pointer'}} onClick={() => handleTabClick('review')}>
             <div className="stat-icon" style={{color: '#ef4444'}}><i className="fa-solid fa-circle-exclamation"></i></div>
             <div className="stat-content">
               <p className="stat-label">Requiring Review</p>
-              <h3 className="stat-value">{reviewCount}</h3>
+              <h3 className="stat-value">{reviewedBills.length}</h3>
               <p className="stat-subtext">High relevance, unreviewed</p>
             </div>
           </div>
@@ -386,6 +404,9 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
               </button>
               <button className={`tab-btn ${activeTab === 'search' ? 'active' : ''}`} onClick={() => handleTabClick('search')}>
                 <i className="fa-solid fa-magnifying-glass"></i> Search
+              </button>
+              <button className={`tab-btn ${activeTab === 'review' ? 'active' : ''}`} onClick={() => handleTabClick('review')}>
+                <i className="fa-solid fa-circle-exclamation"></i> Needs Review
               </button>
               <button className={`tab-btn ${activeTab === 'live' ? 'active' : ''}`} onClick={() => handleTabClick('live')}>
                 <i className="fa-solid fa-bolt-lightning"></i> Live Search
@@ -596,8 +617,12 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
                 <div className="fallback-banner" style={{display:'flex'}}>
                   <i className="fa-solid fa-circle-info"></i>
                   <div className="fallback-text">
-                    <strong>No actions found.</strong>
-                    <span>No legislative actions match your criteria.</span>
+                    {activeTab === 'review' && !userEmail
+                      ? <><strong>Sign in to use the review list.</strong><span>Log in to bookmark bills for review.</span></>
+                      : activeTab === 'review'
+                        ? <><strong>No bills in your review list.</strong><span>Click the <i className="fa-regular fa-bookmark"></i> icon on any bill to add it here.</span></>
+                        : <><strong>No actions found.</strong><span>No legislative actions match your criteria.</span></>
+                    }
                   </div>
                 </div>
               )}
@@ -627,14 +652,28 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
                             </div>
                           </div>
                           <div className="bill-card-right">
-                            {(displayScore !== null && displayScore !== undefined) && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem', padding: '0.2rem 0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: `1px solid ${displayScore >= 70 ? 'var(--c-teal)' : displayScore >= 40 ? '#f59e0b' : '#ef4444'}` }}>
-                                <i className="fa-solid fa-brain" style={{color: 'var(--c-teal)', fontSize: '0.7rem'}}></i>
-                                <span style={{fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 'bold', color: displayScore >= 70 ? 'var(--c-teal-bright)' : displayScore >= 40 ? '#f59e0b' : '#ef4444'}}>
-                                  {scoreLabel}: {displayScore}
-                                </span>
-                              </div>
-                            )}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                              {userEmail && (
+                                <button
+                                  onClick={(e) => handleBookmarkToggle(e, bill)}
+                                  title={reviewedBills.includes(bill.source_id) ? 'Remove from review list' : 'Add to review list'}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem 0.4rem', color: reviewedBills.includes(bill.source_id) ? '#ef4444' : 'var(--text-tertiary)', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                >
+                                  <i className={reviewedBills.includes(bill.source_id) ? 'fa-solid fa-bookmark' : 'fa-regular fa-bookmark'}></i>
+                                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                                    {reviewedBills.includes(bill.source_id) ? 'Reviewing' : 'Add for Review'}
+                                  </span>
+                                </button>
+                              )}
+                              {(displayScore !== null && displayScore !== undefined) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.2rem 0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '4px', border: `1px solid ${displayScore >= 70 ? 'var(--c-teal)' : displayScore >= 40 ? '#f59e0b' : '#ef4444'}` }}>
+                                  <i className="fa-solid fa-brain" style={{color: 'var(--c-teal)', fontSize: '0.7rem'}}></i>
+                                  <span style={{fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: 'bold', color: displayScore >= 70 ? 'var(--c-teal-bright)' : displayScore >= 40 ? '#f59e0b' : '#ef4444'}}>
+                                    {scoreLabel}: {displayScore}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                             <span className={`card-stage ${stageClass}`}>{bill.current_stage}</span>
                             <span className="card-more">Details <i className="fa-solid fa-arrow-right"></i></span>
                           </div>

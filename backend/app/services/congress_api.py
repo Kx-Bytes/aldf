@@ -100,7 +100,19 @@ class CongressAPIClient:
         Retrieves action history for a specific bill.
         """
         params = {"offset": offset, "limit": limit}
-        return self._request(f"bill/{congress}/{bill_type.lower()}/{bill_number}/actions", params=params)
+        result = self._request(f"bill/{congress}/{bill_type.lower()}/{bill_number}/actions", params=params)
+        # Congress.gov returns the same (date, text) from multiple sourceSystems.
+        # Keep only the first occurrence of each (date, text) pair.
+        actions = result.get("actions") or []
+        seen: set = set()
+        deduped = []
+        for action in actions:
+            key = (action.get("actionDate"), (action.get("text") or "").strip())
+            if key not in seen:
+                seen.add(key)
+                deduped.append(action)
+        result["actions"] = deduped
+        return result
 
     def close(self):
         self.client.close()

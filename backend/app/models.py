@@ -135,6 +135,7 @@ class UserProfile(Base):
     frequency: Mapped[str] = mapped_column(String(20), default="daily")  # 'daily' | 'weekly'
     scope: Mapped[str] = mapped_column(String(20), default="federal")    # 'federal' | 'priority_states' | 'all_states'
     min_relevance_score: Mapped[int] = mapped_column(Integer, default=70)
+    review_bills: Mapped[list] = mapped_column(JSONB, nullable=False, server_default='[]', default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 

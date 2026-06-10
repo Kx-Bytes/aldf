@@ -151,6 +151,10 @@ export async function updateUser(email, body) {
   });
 }
 
+export async function fetchReviewBills(email) {
+  return request(`/users/${encodeURIComponent(email)}/review-bills`);
+}
+
 // ── Health & Sync ─────────────────────────────────────────────────────────────
 
 export async function checkHealth() {

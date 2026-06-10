@@ -2,7 +2,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_, func
 from typing import Dict, Any, List, Optional
 import csv
@@ -501,6 +501,7 @@ def live_search(
         base_q = (
             db.query(LegislativeDocument, action_subq.c.action_date, action_subq.c.text)
             .join(action_subq, LegislativeDocument.id == action_subq.c.document_id)
+            .options(selectinload(LegislativeDocument.subjects))
         )
         # Still apply topic/keyword filter when we have signals; otherwise return all
         # bills active on that date (user may be exploring).
@@ -514,10 +515,11 @@ def live_search(
     else:
         # No date: pre-filter by topic/keyword match in SQL — never loads the full table.
         if not candidate_filters:
-            # Prompt produced no topics or keywords; return nothing rather than full scan.
+            # Prompt captured no topics or keywords; return nothing rather than full scan.
             return {"date": None, "prompt_expansion": expansion, "total": 0, "results": []}
         docs = (
             db.query(LegislativeDocument)
+            .options(selectinload(LegislativeDocument.subjects))
             .filter(or_(*candidate_filters))
             .all()
         )
@@ -767,6 +769,8 @@ def update_user(email: str, body: Dict[str, Any], db: Session = Depends(get_db))
         profile.scope = body["scope"]
     if "min_relevance_score" in body:
         profile.min_relevance_score = body["min_relevance_score"]
+    if "review_bills" in body:
+        profile.review_bills = body["review_bills"]
 
     db.commit()
     db.refresh(profile)
@@ -787,9 +791,54 @@ def _format_profile(profile: UserProfile) -> Dict[str, Any]:
         "frequency": profile.frequency,
         "scope": profile.scope,
         "min_relevance_score": profile.min_relevance_score,
+        "review_bills": profile.review_bills or [],
         "created_at": profile.created_at.isoformat(),
         "updated_at": profile.updated_at.isoformat(),
     }
+
+
+@app.get("/users/{email}/review-bills")
+def get_review_bills(email: str, db: Session = Depends(get_db)):
+    """Return full bill details for all bills the user has manually added to their review list."""
+    profile = db.query(UserProfile).filter(UserProfile.email == email.lower()).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    source_ids = profile.review_bills or []
+    if not source_ids:
+        return {"results": [], "total": 0}
+
+    docs = (
+        db.query(LegislativeDocument)
+        .options(selectinload(LegislativeDocument.subjects))
+        .filter(LegislativeDocument.source_id.in_(source_ids))
+        .all()
+    )
+    results = []
+    for doc in docs:
+        sp_name, sp_party, sp_state = extract_sponsor_info(doc.api_raw)
+        results.append({
+            "id": str(doc.id),
+            "source_id": doc.source_id,
+            "title": doc.title,
+            "congress": doc.congress,
+            "bill_type": doc.bill_type,
+            "bill_number": doc.bill_number,
+            "introduced_date": doc.introduced_date.isoformat() if doc.introduced_date else None,
+            "origin_chamber": doc.origin_chamber,
+            "policy_area": doc.policy_area,
+            "current_stage": get_current_stage(doc.last_action_text),
+            "last_action_date": doc.last_action_date.isoformat() if doc.last_action_date else None,
+            "last_action_text": doc.last_action_text,
+            "sponsor_name": sp_name,
+            "sponsor_party": sp_party,
+            "sponsor_state": sp_state,
+            "subjects": [s.name for s in doc.subjects],
+            "relevance_score": doc.relevance_score,
+            "relevance_topics": doc.relevance_topics,
+            "ai_summary": doc.ai_summary,
+        })
+    return {"results": results, "total": len(results)}
 
 
 @app.get("/subjects")
