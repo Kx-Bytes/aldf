@@ -157,8 +157,8 @@ def main():
         matching_subjects = []
         is_matched = False
         
-        # Rule 1: Policy Area == Animals
-        if policy_area_name == "Animals":
+        # Rule 1: Policy Area is an ALDF-tracked area (Animals, Agriculture and Food)
+        if policy_area_name in ("Animals", "Agriculture and Food"):
             is_matched = True
             
         # Rule 2: Legislative subjects overlap with approved animal subjects list

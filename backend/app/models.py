@@ -79,6 +79,7 @@ class Subject(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Back-reference
     documents: Mapped[List[LegislativeDocument]] = relationship(

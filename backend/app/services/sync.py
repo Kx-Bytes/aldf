@@ -9,7 +9,7 @@ from sqlalchemy import func
 
 from ..models import LegislativeDocument, Subject, AnimalSubject, SyncLog
 from .congress_api import CongressAPIClient
-from .matching import match_bill, is_action_active
+from .matching import match_bill, is_action_active, get_subject_category
 
 # Approved subjects list from requirements
 APPROVED_SUBJECTS: List[str] = [
@@ -285,12 +285,13 @@ def process_bill(
         doc.official_summary = official_summary
         doc.updated_at = datetime.now()
 
-        # Refresh subjects.
+        # Refresh subjects — only store names in the approved list.
+        approved_names = [n for n in subject_names if n in active_subject_names]
         doc.subjects.clear()
-        for name in subject_names:
+        for name in approved_names:
             subj = db.query(Subject).filter(Subject.name == name).first()
             if not subj:
-                subj = Subject(name=name)
+                subj = Subject(name=name, category=get_subject_category(name))
                 db.add(subj)
                 db.flush()
             doc.subjects.append(subj)
@@ -319,10 +320,12 @@ def process_bill(
         db.add(doc)
         db.flush()
 
-        for name in subject_names:
+        # Only store subjects that are in the approved list.
+        approved_names = [n for n in subject_names if n in active_subject_names]
+        for name in approved_names:
             subj = db.query(Subject).filter(Subject.name == name).first()
             if not subj:
-                subj = Subject(name=name)
+                subj = Subject(name=name, category=get_subject_category(name))
                 db.add(subj)
                 db.flush()
             doc.subjects.append(subj)

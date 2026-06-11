@@ -117,6 +117,15 @@ export async function fetchSubjects() {
 }
 
 /**
+ * Fetch subjects pre-grouped by ALDF focus-area category.
+ * Maps to GET /subjects/grouped
+ * Returns [{ category, subjects: [{ name, document_count }] }]
+ */
+export async function fetchSubjectsGrouped() {
+  return request('/subjects/grouped');
+}
+
+/**
  * Fetch policy area stats.
  * Maps to GET /stats/policy-areas
  */

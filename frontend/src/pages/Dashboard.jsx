@@ -9,13 +9,13 @@ import {
   getUser,
   updateUser,
   createUser,
-  fetchSubjects,
+  fetchSubjectsGrouped,
   fetchReviewBills
 } from '../services/api';
 import { ThemeToggle } from '../components/ThemeToggle';
 import './Dashboard.css';
 
-const STATES = [
+const STATES = new Set([
   'Alabama', 'Alaska', 'Arizona', 'Arkansas', 'California', 'Colorado', 'Connecticut',
   'Delaware', 'Florida', 'Georgia', 'Hawaii', 'Idaho', 'Illinois', 'Indiana', 'Iowa',
   'Kansas', 'Kentucky', 'Louisiana', 'Maine', 'Maryland', 'Massachusetts', 'Michigan',
@@ -23,7 +23,8 @@ const STATES = [
   'New Jersey', 'New Mexico', 'New York', 'North Carolina', 'North Dakota', 'Ohio', 'Oklahoma',
   'Oregon', 'Pennsylvania', 'Rhode Island', 'South Carolina', 'South Dakota', 'Tennessee',
   'Texas', 'Utah', 'Vermont', 'Virginia', 'Washington', 'West Virginia', 'Wisconsin', 'Wyoming'
-];
+]);
+
 
 const YESTERDAY_ISO = (() => {
   const d = new Date();
@@ -62,7 +63,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterByPrompt, setFilterByPrompt] = useState(false);
   const [filtersApplied, setFiltersApplied] = useState(false);
-  const [subjectList, setSubjectList] = useState([]);
+  const [subjectGroups, setSubjectGroups] = useState([]);
 
   // ── Live Search State
   const [liveSearchInput, setLiveSearchInput] = useState('');
@@ -98,7 +99,7 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
       })
       .catch(err => console.error('Failed to load stats:', err));
       
-    fetchSubjects().then(data => setSubjectList(data || []));
+    fetchSubjectsGrouped().then(data => setSubjectGroups(data || []));
 
 
     // Load prefs
@@ -433,7 +434,13 @@ export default function Dashboard({ onLogout, theme, toggleTheme, userEmail }) {
                       <i className="fa-solid fa-tag"></i>
                       <select value={filterSubject} onChange={e => setFilterSubject(e.target.value)}>
                         <option value="">All Subjects</option>
-                        {subjectList.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                        {subjectGroups.map(group => (
+                          <optgroup key={group.category} label={group.category}>
+                            {group.subjects.map(s => (
+                              <option key={s.name} value={s.name}>{s.name}</option>
+                            ))}
+                          </optgroup>
+                        ))}
                       </select>
                     </div>
                   </div>

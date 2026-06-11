@@ -17,7 +17,7 @@ from datetime import date
 from .database import get_db
 from .models import LegislativeDocument, SyncLog, Base, Subject, UserProfile
 from .services.sync import seed_animal_subjects, run_historical_backfill
-from .services.matching import get_current_stage
+from .services.matching import get_current_stage, SUBJECT_CATEGORIES
 from .services.ai_processing import process_bill_ai, expand_prompt_to_topics, score_against_prompt
 from .services.congress_api import CongressAPIClient
 
@@ -853,23 +853,70 @@ def list_subjects(db: Session = Depends(get_db)):
         return cached
     results = db.query(
         Subject.name,
+        Subject.category,
         func.count(LegislativeDocument.id).label("document_count")
     ).join(
         LegislativeDocument.subjects
     ).group_by(
-        Subject.name
+        Subject.name,
+        Subject.category,
     ).order_by(
         func.count(LegislativeDocument.id).desc(),
         Subject.name
     ).all()
-    
+
     res = [
-        {"name": name, "document_count": count}
-        for name, count in results
+        {"name": name, "category": category, "document_count": count}
+        for name, category, count in results
     ]
     try:
         set_cache(cache_key, res, expire=300)
     except Exception as e:
+        pass
+    return res
+
+
+@app.get("/subjects/grouped")
+def list_subjects_grouped(db: Session = Depends(get_db)):
+    """
+    Lists subjects grouped by ALDF focus-area category (stored on each Subject row).
+    Returns an ordered list of { category, subjects: [{ name, document_count }] }.
+    """
+    from .services.cache import get_cache, set_cache
+    cache_key = "aldf:cache:subjects:grouped"
+    cached = get_cache(cache_key)
+    if cached is not None:
+        return cached
+
+    CATEGORY_ORDER = list(SUBJECT_CATEGORIES.keys()) + ["Region", "Other"]
+
+    rows = db.query(
+        Subject.category,
+        Subject.name,
+        func.count(LegislativeDocument.id).label("document_count")
+    ).join(
+        LegislativeDocument.subjects
+    ).group_by(
+        Subject.category,
+        Subject.name,
+    ).order_by(
+        func.count(LegislativeDocument.id).desc(),
+        Subject.name
+    ).all()
+
+    groups: dict = {cat: [] for cat in CATEGORY_ORDER}
+    for category, name, count in rows:
+        bucket = category if category and category in groups else "Other"
+        groups[bucket].append({"name": name, "document_count": count})
+
+    res = [
+        {"category": cat, "subjects": groups[cat]}
+        for cat in CATEGORY_ORDER
+        if groups[cat]
+    ]
+    try:
+        set_cache(cache_key, res, expire=300)
+    except Exception:
         pass
     return res
 

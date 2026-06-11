@@ -1,5 +1,73 @@
 from __future__ import annotations
-from typing import List, Set, Tuple, Optional
+from typing import List, Set, Tuple, Optional, Dict
+
+# Congress.gov policy areas that automatically qualify a bill for ingestion.
+ALDF_POLICY_AREAS: Set[str] = {"Animals", "Agriculture and Food"}
+
+# ALDF focus-area taxonomy applied to Congress.gov legislative subject names.
+SUBJECT_CATEGORIES: Dict[str, List[str]] = {
+    "Animals Used in Research": [
+        "Animal and plant health",
+        "Environmental assessment, monitoring, research",
+        "Veterinary medicine and animal diseases",
+        "Infectious and parasitic diseases",
+        "Environmental health",
+        "World health",
+    ],
+    "Farmed Animals": [
+        "Livestock",
+        "Agricultural practices and innovations",
+        "Agricultural research",
+        "Aquaculture",
+        "Meat",
+        "Seafood",
+        "Food supply, safety, and labeling",
+        "Pest management",
+    ],
+    "Wildlife": [
+        "Birds",
+        "Fishes",
+        "Insects",
+        "Mammals",
+        "Reptiles",
+        "Aquatic ecology",
+        "Ecology",
+        "Endangered and threatened species",
+        "Forests, forestry, trees",
+        "Hunting and fishing",
+        "Land use and conservation",
+        "Lakes and rivers",
+        "Marine and coastal resources, fisheries",
+        "Marine pollution",
+        "Outdoor recreation",
+        "Watersheds",
+        "Wetlands",
+        "Wilderness and natural areas, wildlife refuges, wild rivers, habitats",
+        "Wildlife conservation and habitat protection",
+    ],
+    "Companion & Captive Animals": [
+        "Animal protection and human-animal relationships",
+        "Crimes against animals and natural resources",
+        "Service animals",
+    ],
+    "Legal & Policy Issues": [
+        "Human trafficking",
+        "Smuggling and trafficking",
+    ],
+}
+
+# Reverse lookup built once at import time: subject name → category label.
+_SUBJECT_TO_CATEGORY: Dict[str, str] = {
+    subject: category
+    for category, subjects in SUBJECT_CATEGORIES.items()
+    for subject in subjects
+}
+
+
+def get_subject_category(subject_name: str) -> Optional[str]:
+    """Return the ALDF category for a subject name, or None if unmapped."""
+    return _SUBJECT_TO_CATEGORY.get(subject_name)
+
 
 def match_bill(
     policy_area: Optional[str],
@@ -19,8 +87,8 @@ def match_bill(
     matching_subjects = []
     is_matched = False
 
-    # Rule 1: Policy Area is "Animals"
-    if policy_area == "Animals":
+    # Rule 1: Policy area is one of the ALDF-tracked areas (Animals, Agriculture and Food).
+    if policy_area in ALDF_POLICY_AREAS:
         is_matched = True
 
     # Rule-2: At least one legislative subject matches our active list
