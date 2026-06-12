@@ -1169,7 +1169,8 @@ def auth_verify(token: str, db: Session = Depends(get_db)):
     db.commit()
 
     # Redirect to the frontend login page with a success flag
-    return RedirectResponse(url=f"{cfg.FRONTEND_URL}?verified=true")
+    # Strip any trailing slash from FRONTEND_URL to avoid double-slash when adding query params
+    return RedirectResponse(url=f"{cfg.FRONTEND_URL.rstrip('/')}?verified=true")
 
 
 @app.post("/auth/verify-and-activate")

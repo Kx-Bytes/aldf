@@ -28,6 +28,8 @@ class Settings(BaseSettings):
 
     # Frontend base URL (used in verification email links)
     FRONTEND_URL: str = "http://localhost:5173"
+    # Backend base URL (used to build verification links that auto-verify)
+    BACKEND_URL: str = "http://localhost:8000"
 
     # Allow reading from a .env file relative to the project root
     model_config = SettingsConfigDict(
