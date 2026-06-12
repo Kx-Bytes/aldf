@@ -1171,6 +1171,41 @@ def auth_verify(token: str, db: Session = Depends(get_db)):
     return RedirectResponse(url=f"{cfg.FRONTEND_URL}?verified=true")
 
 
+@app.post("/auth/verify-and-activate")
+def auth_verify_and_activate(body: Dict[str, Any], db: Session = Depends(get_db)):
+    """Verify a user's email, check their password, and activate their account."""
+    from .services.auth import verify_password, create_access_token
+
+    token = body.get("token")
+    email = (body.get("email") or "").strip().lower()
+    password = (body.get("password") or "").strip()
+
+    if not token or not email or not password:
+        raise HTTPException(status_code=400, detail="token, email, and password are required")
+
+    profile = db.query(UserProfile).filter(UserProfile.verification_token == token).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Invalid or expired verification token")
+
+    if profile.email.lower() != email:
+        raise HTTPException(status_code=400, detail="Email address does not match this verification token")
+
+    if not profile.password_hash or not verify_password(password, profile.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect password")
+
+    profile.is_verified = True
+    profile.verification_token = None
+    db.commit()
+
+    jwt_token = create_access_token({"sub": profile.email})
+    return {
+        "access_token": jwt_token,
+        "token_type": "bearer",
+        "email": profile.email,
+        "message": "Account successfully verified and activated."
+    }
+
+
 @app.post("/auth/login")
 def auth_login(body: Dict[str, Any], db: Session = Depends(get_db)):
     """Authenticate a verified user. Returns a JWT access token."""

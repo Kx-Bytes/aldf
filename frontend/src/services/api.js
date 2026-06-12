@@ -206,3 +206,10 @@ export async function resendVerification(email) {
   });
 }
 
+export async function verifyAndActivate(email, password, token) {
+  return request('/auth/verify-and-activate', {
+    method: 'POST',
+    body: JSON.stringify({ email, password, token }),
+  });
+}
+

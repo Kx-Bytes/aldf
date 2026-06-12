@@ -13,15 +13,19 @@ function App() {
     return localStorage.getItem('aldf_email') || null;
   });
 
-  useEffect(() => {
-    // Intercept the link from the email and redirect to the backend API to process the verification
+  const [activationToken, setActivationToken] = useState(() => {
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
-    
     if (path === '/verify-email' && token) {
-      window.location.href = `/api/auth/verify/${token}`;
+      window.history.replaceState({}, '', '/');
+      return token;
     }
+    return null;
+  });
+
+  useEffect(() => {
+    // Redirection handled by activationToken state on mount
   }, []);
 
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -67,6 +71,8 @@ function App() {
           toggleTheme={toggleTheme}
           justVerified={justVerified}
           onVerifiedDismiss={() => setJustVerified(false)}
+          activationToken={activationToken}
+          onActivationDismiss={() => setActivationToken(null)}
         />
       ) : (
         <Dashboard

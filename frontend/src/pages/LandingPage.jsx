@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Sparkles, ArrowRight, X, Download, Brain, FileSearch, Mail, Scale, Target, LineChart, CheckCircle, RefreshCw } from 'lucide-react';
 import './LandingPage.css';
-import { signup, login, resendVerification, setToken } from '../services/api';
+import { signup, login, resendVerification, verifyAndActivate, setToken } from '../services/api';
 
-export default function LandingPage({ onLogin, theme, toggleTheme, justVerified, onVerifiedDismiss }) {
-  const [authMode, setAuthMode] = useState('login'); // 'login', 'signup'
+export default function LandingPage({ onLogin, theme, toggleTheme, justVerified, onVerifiedDismiss, activationToken, onActivationDismiss }) {
+  const [authMode, setAuthMode] = useState(() => activationToken ? 'activate' : 'login'); // 'login', 'signup', 'activate'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -31,6 +31,12 @@ export default function LandingPage({ onLogin, theme, toggleTheme, justVerified,
       if (authMode === 'signup') {
         await signup(email, password);
         setSignupSuccess(true); // Show "check your email" screen
+      } else if (authMode === 'activate') {
+        const res = await verifyAndActivate(email, password, activationToken);
+        setToken(res.access_token);
+        localStorage.setItem('aldf_email', res.email);
+        onActivationDismiss();
+        onLogin(res.email);
       } else {
         const res = await login(email, password);
         setToken(res.access_token);
@@ -40,16 +46,28 @@ export default function LandingPage({ onLogin, theme, toggleTheme, justVerified,
     } catch (err) {
       // Parse the error message from the API response
       const msg = err.message || '';
-      if (msg.includes('403')) {
-        setError('Your email is not verified yet. Please check your inbox.');
-      } else if (msg.includes('401')) {
-        setError('Invalid email or password.');
-      } else if (msg.includes('409')) {
-        setError('An account with this email already exists.');
-      } else if (msg.includes('400')) {
-        setError('Password must be at least 6 characters.');
+      if (authMode === 'activate') {
+        if (msg.includes('404')) {
+          setError('Invalid or expired verification link.');
+        } else if (msg.includes('400')) {
+          setError('Email address does not match this verification link.');
+        } else if (msg.includes('401')) {
+          setError('Incorrect password.');
+        } else {
+          setError('Activation failed. Please try again.');
+        }
       } else {
-        setError('Something went wrong. Please try again.');
+        if (msg.includes('403')) {
+          setError('Your email is not verified yet. Please check your inbox.');
+        } else if (msg.includes('401')) {
+          setError('Invalid email or password.');
+        } else if (msg.includes('409')) {
+          setError('An account with this email already exists.');
+        } else if (msg.includes('400')) {
+          setError('Password must be at least 6 characters.');
+        } else {
+          setError('Something went wrong. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -230,9 +248,15 @@ export default function LandingPage({ onLogin, theme, toggleTheme, justVerified,
               <div className="auth-logo">
                 <Scale size={20} strokeWidth={2.5} /> ALDF
               </div>
-              <h2 className="auth-title">{authMode === 'login' ? 'Welcome back' : 'Create an account'}</h2>
+              <h2 className="auth-title">
+                {authMode === 'login' ? 'Welcome back' : authMode === 'activate' ? 'Verify & Activate' : 'Create an account'}
+              </h2>
               <p className="auth-subtitle">
-                {authMode === 'login' ? 'Sign in to access your command center dashboard' : 'Join to track animal welfare legislation'}
+                {authMode === 'login' 
+                  ? 'Sign in to access your command center dashboard' 
+                  : authMode === 'activate'
+                    ? 'Confirm your email and password to activate your account'
+                    : 'Join to track animal welfare legislation'}
               </p>
 
               <form onSubmit={handleSubmit} className="auth-form">
@@ -264,17 +288,25 @@ export default function LandingPage({ onLogin, theme, toggleTheme, justVerified,
                 <button type="submit" className="btn-submit" disabled={loading}>
                   {loading
                     ? 'Please wait...'
-                    : authMode === 'login' ? 'Sign in to Dashboard' : 'Create Account'}
+                    : authMode === 'login' 
+                      ? 'Sign in to Dashboard' 
+                      : authMode === 'activate' 
+                        ? 'Activate & Login' 
+                        : 'Create Account'}
                   {!loading && <ArrowRight size={16} />}
                 </button>
               </form>
 
-              <div className="auth-footer-divider">
-                <span>OR</span>
-              </div>
+              {authMode !== 'activate' && (
+                <div className="auth-footer-divider">
+                  <span>OR</span>
+                </div>
+              )}
 
               <div className="auth-footer">
-                {authMode === 'login' ? (
+                {authMode === 'activate' ? (
+                  <p><a onClick={() => { setAuthMode('login'); onActivationDismiss(); setError(''); }}>Back to sign in</a></p>
+                ) : authMode === 'login' ? (
                   <p>New to ALDF? <a onClick={() => { setAuthMode('signup'); setError(''); }}>Create an account</a></p>
                 ) : (
                   <p>Already have an account? <a onClick={() => { setAuthMode('login'); setError(''); }}>Sign in</a></p>
