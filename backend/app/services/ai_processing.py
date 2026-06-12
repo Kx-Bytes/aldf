@@ -106,7 +106,14 @@ def _call_llm(user_prompt: str) -> Dict[str, Any]:
 
     with httpx.Client(timeout=120.0) as client:
         response = client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            body = response.text.strip()
+            detail = f"OpenRouter request failed with {response.status_code}"
+            if body:
+                detail = f"{detail}: {body[:1000]}"
+            raise RuntimeError(detail) from exc
         data = response.json()
 
     content = data["choices"][0]["message"]["content"]
@@ -207,7 +214,14 @@ def expand_prompt_to_topics(user_prompt: str, db: Optional[Session] = None, user
     try:
         with httpx.Client(timeout=30.0) as client:
             response = client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                body = response.text.strip()
+                detail = f"OpenRouter request failed with {response.status_code}"
+                if body:
+                    detail = f"{detail}: {body[:1000]}"
+                raise RuntimeError(detail) from exc
             raw = _parse_llm_json(response.json()["choices"][0]["message"]["content"])
         allowed = set(RELEVANCE_TOPICS)
         result = {

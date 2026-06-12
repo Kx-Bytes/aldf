@@ -1,4 +1,5 @@
 import os
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -8,7 +9,10 @@ class Settings(BaseSettings):
     # OpenRouter (OpenAI-compatible) settings for the AI processing pipeline.
     OPENROUTER_API_KEY: str
     OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    LLM_MODEL: str = "anthropic/claude-sonnet-4.5"
+    LLM_MODEL: str = Field(
+        default="anthropic/claude-sonnet-4.5",
+        validation_alias=AliasChoices("LLM_MODEL", "OPENROUTER_MODEL"),
+    )
 
     REDIS_URL: str = "redis://localhost:6379"
 
