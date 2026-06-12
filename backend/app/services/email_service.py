@@ -18,9 +18,9 @@ def get_mail_config() -> ConnectionConfig:
 
 async def send_verification_email(email: str, token: str):
     """Send an email verification link to the user."""
-    # Use the backend verify endpoint so clicking the email link auto-verifies the account
-    # Strip any trailing slash from BACKEND_URL to avoid double-slash in the final URL
-    verify_url = f"{settings.BACKEND_URL.rstrip('/')}/auth/verify/{token}"
+    # Point the verification link to the frontend activation page so users complete activation there
+    # Strip any trailing slash from FRONTEND_URL to avoid double-slash in the final URL
+    verify_url = f"{settings.FRONTEND_URL.rstrip('/')}/verify-email?token={token}"
     # Log the verification URL for debugging in deployed logs
     try:
       print(f"[send_verification_email] verify_url={verify_url}")
