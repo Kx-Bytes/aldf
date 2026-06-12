@@ -804,6 +804,7 @@ def get_review_bills(email: str, db: Session = Depends(get_db)):
     if not profile:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # ok
     source_ids = profile.review_bills or []
     if not source_ids:
         return {"results": [], "total": 0}
