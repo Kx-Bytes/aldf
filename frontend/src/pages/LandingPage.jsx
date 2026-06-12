@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Sparkles, ArrowRight, X, Download, Brain, FileSearch, Mail, Scale, Target, LineChart, CheckCircle, RefreshCw } from 'lucide-react';
 import './LandingPage.css';
@@ -13,6 +13,14 @@ export default function LandingPage({ onLogin, theme, toggleTheme, justVerified,
   const [signupSuccess, setSignupSuccess] = useState(false); // "check your email" state
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState('');
+
+  useEffect(() => {
+    if (activationToken) {
+      setTimeout(() => {
+        document.getElementById('auth-section')?.scrollIntoView({ behavior: 'smooth' });
+      }, 200);
+    }
+  }, [activationToken]);
 
   const scrollToAuth = (mode) => {
     setAuthMode(mode);
